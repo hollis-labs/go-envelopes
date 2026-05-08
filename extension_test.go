@@ -45,6 +45,28 @@ func TestRegisterType_rejectsUnnamespacedName(t *testing.T) {
 	}
 }
 
+func TestRegisterType_acceptsMultiSegmentName(t *testing.T) {
+	// Plugins may stack a vendor prefix in front of the plugin id
+	// ("myorg.myplugin.kind") — the namespaced regex permits any chain
+	// of dot-separated kebab segments with at least one dot.
+	r := mustLoad(t)
+	for _, name := range []string{
+		"myorg.myplugin.calendar-pick",
+		"a.b.c.d",
+		"vendor.plugin1.feature.subkind",
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := r.RegisterType(TypeSpec{Name: name, PluginID: "myplugin"})
+			if err != nil {
+				t.Errorf("name %q: expected accept, got %v", name, err)
+			}
+			if !r.Has(name) {
+				t.Errorf("name %q: not registered", name)
+			}
+		})
+	}
+}
+
 func TestRegisterType_overridesCoreSourceClaim(t *testing.T) {
 	// A caller that mistakenly hands TypeSourceCore to the plugin API
 	// gets the value silently overwritten with TypeSourcePlugin. This

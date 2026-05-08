@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "envelopes-v1.schema.json",
-  "title": "Nanite Envelope Manifest",
-  "description": "Defines core envelope types for Go validation and TypeScript codegen. Note: runtime envelope instances carry additional fields not modelled here (e.g. `target`) — see internal/chat/envelope.go for the Envelope struct and docs/envelopes.md for the full runtime contract.",
+  "title": "go-envelopes / ts-envelopes Manifest",
+  "description": "Defines core envelope types for Go validation and TypeScript codegen. Runtime envelope instances carry additional fields not modeled here (presentation, trace, etc.) — see types.go for the Envelope struct and docs/manifest-spec.md for the full manifest contract. Host-specific routing fields (e.g. drawer/panel ids) belong on each host's own wrapper struct, not in go-envelopes.",
   "type": "object",
   "required": ["core"],
   "additionalProperties": false,
@@ -36,6 +36,10 @@
         "description": {
           "type": "string",
           "description": "Optional human-readable description."
+        },
+        "props": {
+          "type": "string",
+          "description": "Optional renderer-side prop discriminator (e.g. 'approval', 'proposal') for component dispatch in TS codegen. Ignored by Go."
         }
       },
       "dependentRequired": {

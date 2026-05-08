@@ -9,25 +9,31 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// pluginTypeName matches "<plugin-id>.<type>" where each segment is
-// kebab-case-lower. Plugin types MUST be namespaced; un-namespaced names
-// are reserved for core types.
-var pluginTypeName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9-]*$`)
-
-// coreTypeName matches a single kebab-case-lower segment with no dot.
-// Used by LoadCore-side validation only; plugin code never registers
-// core-shape names through RegisterType.
-var coreTypeName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+// pluginTypeName matches a namespaced plugin type name: two or more
+// kebab-case-lower segments joined by single dots (e.g.
+// "myplugin.calendar-pick", "myorg.myplugin.calendar"). Plugin types
+// MUST be namespaced; un-namespaced names (no dot) are reserved for
+// core types.
+//
+// Multi-segment names are accepted so plugin authors can stack a
+// vendor/org prefix in front of the plugin id ("myorg.myplugin.kind")
+// without the registry imposing a structural opinion. The library
+// treats the whole string as the type name; the conventional "first
+// segment is the plugin id" reading is up to the caller.
+var pluginTypeName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)+$`)
 
 // RegisterType adds a plugin-owned envelope type to the registry. Used by
 // plugin-SDK consumers to extend the catalog at runtime.
 //
 // Rules:
-//   - spec.Name MUST be of the form "<plugin-id>.<type>" (kebab-case
-//     segments). Names that match the un-namespaced core form are
-//     rejected with ErrInvalidName.
-//   - spec.Source is set to TypeSourcePlugin if the caller didn't
-//     pre-set it; PluginID is preserved as supplied.
+//   - spec.Name MUST be a namespaced kebab-case identifier with at least
+//     one dot separator: "<plugin-id>.<type>" minimally, optionally with
+//     a vendor/org prefix like "<vendor>.<plugin-id>.<type>". Each
+//     segment matches [a-z0-9][a-z0-9-]*. Un-namespaced names (no dot)
+//     are reserved for core types and rejected with ErrInvalidName.
+//   - spec.Source is forced to TypeSourcePlugin regardless of input,
+//     keeping UnregisterType's core-type protection intact. PluginID is
+//     preserved as supplied.
 //   - The first registration wins. A second call for the same name
 //     returns ErrConflict; the library does not silently overwrite.
 //
@@ -36,7 +42,7 @@ var coreTypeName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 // well-formed registration. See docs/extension-api.md for the boundary.
 func (r *Registry) RegisterType(spec TypeSpec) error {
 	if !pluginTypeName.MatchString(spec.Name) {
-		return fmt.Errorf("%w: %q must be of the form <plugin-id>.<type> (kebab-case)", ErrInvalidName, spec.Name)
+		return fmt.Errorf("%w: %q must be a namespaced kebab-case name with at least one dot (e.g. <plugin-id>.<type>)", ErrInvalidName, spec.Name)
 	}
 	// Plugin-side registrations always land as TypeSourcePlugin. Callers
 	// that pass a different value get it overwritten, which keeps
@@ -119,10 +125,11 @@ type PluginManifestEntry struct {
 // be empty when the type has no per-instance data shape.
 //
 // pluginID is recorded on the resulting TypeSpec.PluginID for later
-// UnregisterPlugin calls. The final registered name is "<pluginID>.<type>"
-// when the manifest entry's Type is unnamespaced, or the entry's Type
-// verbatim when it already contains a dot (the host can ship multi-segment
-// names like "myorg.myplugin.calendar").
+// UnregisterPlugin calls. The final registered name is the manifest
+// entry's Type verbatim when it already satisfies the namespaced form
+// (one or more dot-separated kebab segments — e.g. "myplugin.calendar"
+// or "myorg.myplugin.calendar"); otherwise it is constructed by
+// prefixing pluginID, yielding "<pluginID>.<type>".
 func (r *Registry) RegisterTypeFromManifest(manifestBytes, schemaBytes []byte, pluginID string) error {
 	if pluginID == "" {
 		return fmt.Errorf("envelopes: plugin id is required")

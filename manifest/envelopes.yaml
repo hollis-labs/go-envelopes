@@ -1,22 +1,29 @@
 # Envelope type manifest — single source of truth for both Go and TypeScript.
 #
-# Go loads this file at runtime to populate the registeredTypes validation map.
-# The codegen script reads it to generate CORE_ENTRIES in plugin-envelopes.ts.
+# This file is consumed by:
+#   - go-envelopes (this repo): loaded via go:embed at runtime to seed the
+#     core type registry. See registry.go (LoadCore) and types.go.
+#   - ts-envelopes (separate repo): codegen reads it to emit Zod schemas
+#     and TypeScript types.
 #
 # Adding a new core envelope type:
-#   1. Add an entry here (type + component + export)
-#   2. Create the React component at ui/src/{component}.tsx
-#   3. Run: npm run generate:plugins (or it runs automatically on build/dev)
-#   4. That's it — both Go and TypeScript pick it up.
+#   1. Add an entry here (type + optional component/export for TS rendering).
+#   2. Drop a JSON Schema at manifest/schemas/<type>.schema.json validating
+#      the envelope's `data` payload (optional — entries without a schema
+#      register without one, and validation passes on type-name alone).
+#   3. Add tests covering known-good and known-bad payloads.
+#   4. Tag a minor release. ts-envelopes pulls from this manifest.
 #
 # If a type has no frontend component yet, omit `component` and `export`.
-# Go will register it for validation; TypeScript codegen will skip it.
+# Go registers it for validation; TS codegen skips component generation.
 #
-# Runtime envelope instance fields (not manifest fields — see Envelope struct in
-# internal/chat/envelope.go):
-#   target: optional drawer ID for envelope routing (J8 v1). Known v1 IDs:
-#     "bottom_chat_drawer", "work", "workflows". Omit to render inline in chat.
-#   See docs/architecture/envelope-pipeline.md for the full pipeline description.
+# Runtime envelope instance fields (not manifest fields — they live on the
+# Envelope struct in types.go):
+#   - Presentation: rendering hint (inline/modal/drawer/sidecar/fullscreen).
+#   - Trace: observability metadata (agentId, sessionId, etc.).
+# Host-specific routing fields (e.g. Nanite's `target`/`render_target` for
+# panel routing) are NOT modeled by go-envelopes; they belong on each host's
+# own wrapper struct. See docs/manifest-spec.md for the full schema spec.
 
 core:
   # Generic primitives

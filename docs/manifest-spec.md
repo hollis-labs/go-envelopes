@@ -107,7 +107,13 @@ with core manifests.
 ## ts-envelopes parity
 
 `ts-envelopes` reads the same YAML + JSON Schemas as its source of truth.
-No Go-specific keys live in the manifest, and Go does not interpret
-TS-specific keys. Adding a new TS-side rendering hint (e.g. CSS class
-hint) is safe — Go ignores unknown YAML keys via the `Extra`-style
-passthrough on `ManifestEntry`.
+No Go-specific keys live in the manifest, and Go does not interpret the
+TS-specific keys it knows about beyond surfacing them through
+`TypeSpec.UIMetadata`. **Unknown YAML keys are dropped by Go's decoder**
+— adding a brand-new TS-side rendering hint that Go must also expose to
+downstream tooling requires either bumping `go-envelopes` with a new
+field on `ManifestEntry` (and a minor release) or reading the raw
+manifest bytes via `EmbeddedFS()`. Out-of-band metadata that Go never
+needs to surface (e.g. TS-only documentation strings) can be added to
+the YAML freely; `ts-envelopes` will see it and Go will simply ignore
+it.
