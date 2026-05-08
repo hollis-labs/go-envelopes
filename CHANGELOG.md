@@ -19,7 +19,9 @@ adheres to [Semantic Versioning](https://semver.org/).
   `santhosh-tekuri/jsonschema/v6`.
 - First-class plugin extension API: `RegisterType`, `UnregisterType`,
   `UnregisterPlugin`, `RegisterTypeFromManifest`. Plugin types use
-  namespaced names (`<plugin-id>.<type>`); core types are reserved.
+  namespaced kebab-case names with one or more dot separators
+  (`<plugin-id>.<type>` or `<vendor>.<plugin-id>.<type>`); un-namespaced
+  names are reserved for core types.
 - Typed errors: `ErrUnknownType`, `ErrSchemaValidation` (via
   `*ValidationError`), `ErrConflict`, `ErrInvalidName`,
   `ErrCoreTypeProtected`, `ErrUnsupportedKind`.
