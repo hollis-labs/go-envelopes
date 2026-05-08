@@ -1,0 +1,144 @@
+# Envelope type manifest — single source of truth for both Go and TypeScript.
+#
+# This file is consumed by:
+#   - go-envelopes (this repo): loaded via go:embed at runtime to seed the
+#     core type registry. See registry.go (LoadCore) and types.go.
+#   - ts-envelopes (separate repo): codegen reads it to emit Zod schemas
+#     and TypeScript types.
+#
+# Adding a new core envelope type:
+#   1. Add an entry here (type + optional component/export for TS rendering).
+#   2. Drop a JSON Schema at manifest/schemas/<type>.schema.json validating
+#      the envelope's `data` payload (optional — entries without a schema
+#      register without one, and validation passes on type-name alone).
+#   3. Add tests covering known-good and known-bad payloads.
+#   4. Tag a minor release. ts-envelopes pulls from this manifest.
+#
+# If a type has no frontend component yet, omit `component` and `export`.
+# Go registers it for validation; TS codegen skips component generation.
+#
+# Runtime envelope instance fields (not manifest fields — they live on the
+# Envelope struct in types.go):
+#   - Presentation: rendering hint (inline/modal/drawer/sidecar/fullscreen).
+#   - Trace: observability metadata (agentId, sessionId, etc.).
+# Host-specific routing fields (e.g. Nanite's `target`/`render_target` for
+# panel routing) are NOT modeled by go-envelopes; they belong on each host's
+# own wrapper struct. See docs/manifest-spec.md for the full schema spec.
+
+core:
+  # Generic primitives
+  - type: document-viewer
+    component: components/chat/envelopes/DocumentViewerCard
+    export: DocumentViewerCard
+
+  - type: report-card
+    component: components/chat/envelopes/ReportCard
+    export: ReportCard
+
+  - type: error-report
+    component: components/chat/envelopes/ErrorCard
+    export: ErrorCard
+
+  - type: approval-card
+    component: components/chat/envelopes/ApprovalCard
+    export: ApprovalCard
+    # props discriminator: EnvelopeRenderer feeds the envelope's `approval`
+    # field to the card as the `approval` prop instead of the default `data`.
+    props: approval
+
+  - type: proposal-card
+    component: components/chat/envelopes/ProposalCard
+    export: ProposalCard
+    # props discriminator: EnvelopeRenderer feeds the envelope's first
+    # proposal as the `proposal` prop.
+    props: proposal
+
+  - type: question-form
+    # backend-only — InterviewCard renders via EnvelopeRenderer fallback path
+
+  # Work system (todo/plan)
+  - type: todo-list
+    component: components/chat/envelopes/TodoListCard
+    export: TodoListCard
+
+  - type: plan-review
+    component: components/chat/envelopes/PlanReviewCard
+    export: PlanReviewCard
+
+  # Reusable primitives (Phase 7)
+  - type: info-card
+    component: components/chat/envelopes/primitives/InfoCard
+    export: InfoCard
+
+  - type: list-card
+    component: components/chat/envelopes/primitives/ListCard
+    export: ListCard
+
+  - type: metric-card
+    component: components/chat/envelopes/primitives/MetricCard
+    export: MetricCard
+
+  - type: progress-card
+    component: components/chat/envelopes/primitives/ProgressCard
+    export: ProgressCard
+
+  - type: confirmation-card
+    component: components/chat/envelopes/primitives/ConfirmationCard
+    export: ConfirmationCard
+
+  - type: table-card
+    component: components/chat/envelopes/primitives/TableCard
+    export: TableCard
+
+  - type: timeline-card
+    component: components/chat/envelopes/primitives/TimelineCard
+    export: TimelineCard
+
+  - type: diff-card
+    component: components/chat/envelopes/primitives/DiffCard
+    export: DiffCard
+
+  # C2 (CW-20260428-0013) — compact downloadable-artifact card surfaced in the
+  # bottom chat drawer. Default render-target = bottom_chat_drawer (set in
+  # the schema). Auto-closes on Download or Dismiss.
+  - type: artifact-mini
+    component: components/chat/envelopes/ArtifactMiniCard
+    export: ArtifactMiniCard
+
+  # Backend-only (registered for validation, no frontend component yet)
+  - type: session-task
+
+  # Messaging subsystem — S7 T4. Four wire kinds get envelope
+  # content types so request/reply/notification/handoff payloads
+  # can be validated and rendered uniformly. No FE component yet;
+  # registered for validation only. Component work is T10.
+  - type: message-request
+  - type: message-reply
+  - type: message-notification
+  - type: message-handoff
+
+  # G-4 — subagent spawn approval.
+  - type: subagent-spawn-approval
+    component: components/chat/envelopes/SubagentSpawnApprovalCard
+    export: SubagentSpawnApprovalCard
+
+  # CW-20260417-0485 — chat-loop terminal pause envelope. Renders when the
+  # loop exits abnormally (max turns, hard ceiling, idle timeout, runaway
+  # failures) so the user sees a termination card instead of silence.
+  - type: chat-loop-terminated
+    component: components/chat/envelopes/ChatLoopTerminatedCard
+    export: ChatLoopTerminatedCard
+
+  # CW-20260504-0001 — chat-loop soft budget warning. Emitted once per
+  # generation when the loop crosses the strategy planner's soft max_turns
+  # budget without terminating. Signal-only; loop continues. Devmode-gated
+  # on the SSE stream (always logged). FE component is intentionally
+  # omitted — to be reviewed in the inspector/widget review pass.
+  - type: chat-loop-budget-soft-warning
+
+  # CW-20260420-0018 — MCP elicitation/create mid-tool user prompt (G4).
+  # Renders inline in chat with boolean (accept/decline) or string (text input)
+  # input depending on schema_type. User response routes back via ResponseV1.
+  - type: elicitation-prompt
+    component: components/chat/envelopes/ElicitationPromptCard
+    export: ElicitationPromptCard
