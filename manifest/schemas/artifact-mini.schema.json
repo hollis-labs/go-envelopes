@@ -2,7 +2,7 @@
   "$id": "artifact-mini",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Artifact Mini",
-  "description": "Compact downloadable-artifact card surfaced in the bottom chat drawer. Renders name, mime, size, Download CTA, and a Dismiss button. Lifetime is transient — auto-closes after the user downloads or dismisses. Use for ephemeral 'your file is ready' surfaces. Durable session-wide artifact list lives in the right-rail Artifacts panel. (C2, CW-20260428-0013)",
+  "description": "Compact downloadable-artifact card surfaced in the bottom chat drawer. Renders name, mime, size, Download CTA, and a Dismiss button. Lifetime is transient — auto-closes after the user downloads or dismisses. Use for ephemeral 'your file is ready' surfaces. Durable session-wide artifact lists are a host concern.",
   "type": "object",
   "required": [
     "artifact_id",

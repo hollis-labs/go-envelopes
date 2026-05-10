@@ -51,9 +51,10 @@ func WithManifestFS(f fs.FS) LoadOption {
 // schema present on disk, and registers all entries with TypeSourceCore.
 //
 // Entries without an accompanying schema file (e.g. message-* in the
-// Nanite seed) register with a nil DataSchema; ValidateEnvelope skips
-// schema validation for those types and only confirms the type is known,
-// matching Nanite's prior "declared without schema" behavior.
+// core seed) register with a nil DataSchema; ValidateEnvelope skips
+// schema validation for those types and only confirms the type is
+// known. This preserves the seed's "declared without schema" behavior
+// for types whose payload shape is intentionally open.
 func LoadCore(ctx context.Context, opts ...LoadOption) (*Registry, error) {
 	cfg := loadConfig{manifestFS: embeddedManifest}
 	for _, o := range opts {

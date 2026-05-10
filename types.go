@@ -124,16 +124,19 @@ type ResponseError struct {
 	Detail  any    `json:"detail,omitempty"`
 }
 
-// Canonical error codes per protocol-spec-v1 §12.
+// Canonical error codes used by the Envelope UI Protocol's response
+// envelope (kind == error). Hosts and agents SHOULD prefer these codes
+// for cross-host interoperability; the set is intentionally small and
+// extension-free.
 const (
-	ErrorCodeValidationFailed     = "validation-failed"
-	ErrorCodeUnsupportedType      = "unsupported-type"
-	ErrorCodeUnsupportedVersion   = "unsupported-version"
-	ErrorCodeCapabilityDenied     = "capability-denied"
-	ErrorCodeComponentLoadFailed  = "component-load-failed"
-	ErrorCodeTimeout              = "timeout"
-	ErrorCodeHostError            = "host-error"
-	ErrorCodeUserCancelled        = "user-cancelled"
+	ErrorCodeValidationFailed    = "validation-failed"
+	ErrorCodeUnsupportedType     = "unsupported-type"
+	ErrorCodeUnsupportedVersion  = "unsupported-version"
+	ErrorCodeCapabilityDenied    = "capability-denied"
+	ErrorCodeComponentLoadFailed = "component-load-failed"
+	ErrorCodeTimeout             = "timeout"
+	ErrorCodeHostError           = "host-error"
+	ErrorCodeUserCancelled       = "user-cancelled"
 )
 
 // TypeSource identifies whether a registered type was loaded from the core
@@ -160,7 +163,7 @@ func (s TypeSource) String() string {
 // TypeSpec describes one envelope type registered in a Registry.
 //
 // DataSchema is nil if the manifest entry did not ship a per-type JSON
-// Schema (e.g. message-* types in the Nanite seed). PayloadSchema is
+// Schema (e.g. message-* types in the core seed). PayloadSchema is
 // populated only when ResponseKind == data and the type ships a schema.
 //
 // UIMetadata carries TS-side rendering hints (component, export, props)
