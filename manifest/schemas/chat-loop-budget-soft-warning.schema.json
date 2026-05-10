@@ -2,7 +2,7 @@
   "$id": "chat-loop-budget-soft-warning",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Chat Loop Budget Soft Warning",
-  "description": "Emitted once per generation when the chat loop crosses the strategy planner's soft max_turns budget without terminating. Signal-only — the agent continues running until it self-terminates via end_turn or trips a hard circuit-breaker (runaway_tool_failures, hard_ceiling, idle_timeout, retry_budget_exhausted). Devmode-gated on the SSE stream; always logged at INFO. CW-20260504-0001.",
+  "description": "Emitted once per generation when the chat loop crosses the strategy planner's soft max_turns budget without terminating. Signal-only — the agent continues running until it self-terminates via end_turn or trips a hard circuit-breaker (runaway_tool_failures, hard_ceiling, idle_timeout, retry_budget_exhausted). Hosts typically devmode-gate the SSE stream and always log at INFO.",
   "type": "object",
   "required": ["max_turns", "iteration", "reason", "timestamp"],
   "properties": {

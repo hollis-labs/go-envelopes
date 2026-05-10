@@ -21,9 +21,10 @@
 # Envelope struct in types.go):
 #   - Presentation: rendering hint (inline/modal/drawer/sidecar/fullscreen).
 #   - Trace: observability metadata (agentId, sessionId, etc.).
-# Host-specific routing fields (e.g. Nanite's `target`/`render_target` for
-# panel routing) are NOT modeled by go-envelopes; they belong on each host's
-# own wrapper struct. See docs/manifest-spec.md for the full schema spec.
+# Host-specific routing fields (e.g. a host's `target` / `render_target`
+# panel-routing hints) are NOT modeled by go-envelopes; they belong on each
+# host's own wrapper struct. See docs/manifest-spec.md for the full schema
+# spec.
 
 core:
   # Generic primitives
@@ -98,9 +99,9 @@ core:
     component: components/chat/envelopes/primitives/DiffCard
     export: DiffCard
 
-  # C2 (CW-20260428-0013) — compact downloadable-artifact card surfaced in the
-  # bottom chat drawer. Default render-target = bottom_chat_drawer (set in
-  # the schema). Auto-closes on Download or Dismiss.
+  # Compact downloadable-artifact card surfaced in the bottom chat drawer.
+  # Default render-target = bottom_chat_drawer (set in the schema).
+  # Auto-closes on Download or Dismiss.
   - type: artifact-mini
     component: components/chat/envelopes/ArtifactMiniCard
     export: ArtifactMiniCard
@@ -108,37 +109,37 @@ core:
   # Backend-only (registered for validation, no frontend component yet)
   - type: session-task
 
-  # Messaging subsystem — S7 T4. Four wire kinds get envelope
-  # content types so request/reply/notification/handoff payloads
-  # can be validated and rendered uniformly. No FE component yet;
-  # registered for validation only. Component work is T10.
+  # Messaging subsystem. Four wire kinds get envelope content types so
+  # request/reply/notification/handoff payloads can be validated and
+  # rendered uniformly. No frontend component yet; registered for
+  # validation only.
   - type: message-request
   - type: message-reply
   - type: message-notification
   - type: message-handoff
 
-  # G-4 — subagent spawn approval.
+  # Subagent spawn approval.
   - type: subagent-spawn-approval
     component: components/chat/envelopes/SubagentSpawnApprovalCard
     export: SubagentSpawnApprovalCard
 
-  # CW-20260417-0485 — chat-loop terminal pause envelope. Renders when the
-  # loop exits abnormally (max turns, hard ceiling, idle timeout, runaway
-  # failures) so the user sees a termination card instead of silence.
+  # Chat-loop terminal pause envelope. Renders when the loop exits
+  # abnormally (max turns, hard ceiling, idle timeout, runaway failures)
+  # so the user sees a termination card instead of silence.
   - type: chat-loop-terminated
     component: components/chat/envelopes/ChatLoopTerminatedCard
     export: ChatLoopTerminatedCard
 
-  # CW-20260504-0001 — chat-loop soft budget warning. Emitted once per
-  # generation when the loop crosses the strategy planner's soft max_turns
-  # budget without terminating. Signal-only; loop continues. Devmode-gated
-  # on the SSE stream (always logged). FE component is intentionally
-  # omitted — to be reviewed in the inspector/widget review pass.
+  # Chat-loop soft budget warning. Emitted once per generation when the
+  # loop crosses the strategy planner's soft max_turns budget without
+  # terminating. Signal-only; loop continues. Frontend component is
+  # intentionally omitted.
   - type: chat-loop-budget-soft-warning
 
-  # CW-20260420-0018 — MCP elicitation/create mid-tool user prompt (G4).
-  # Renders inline in chat with boolean (accept/decline) or string (text input)
-  # input depending on schema_type. User response routes back via ResponseV1.
+  # MCP elicitation/create mid-tool user prompt. Renders inline in chat
+  # with boolean (accept/decline) or string (text input) input depending
+  # on schema_type. User response routes back via the protocol's response
+  # envelope.
   - type: elicitation-prompt
     component: components/chat/envelopes/ElicitationPromptCard
     export: ElicitationPromptCard

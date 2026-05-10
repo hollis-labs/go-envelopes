@@ -99,8 +99,8 @@ func compileSchemaFromFS(f fs.FS, schemaPath, resourceURI string) (*jsonschema.S
 }
 
 // schemaPathForType returns the canonical schema file path for a core
-// envelope type within the manifest filesystem. Mirrors Nanite's prior
-// "schemas/<type>.schema.json" convention.
+// envelope type within the manifest filesystem. The convention is
+// "manifest/schemas/<type>.schema.json".
 func schemaPathForType(typeName string) string {
 	return path.Join("manifest", "schemas", typeName+".schema.json")
 }

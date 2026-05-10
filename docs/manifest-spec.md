@@ -91,10 +91,10 @@ Example (`info-card.schema.json`):
 ### Custom annotation keywords
 
 Schemas MAY carry annotations the JSON Schema compiler does not interpret.
-The Nanite seed uses `default_render_target` (a panel ID) for runtime
-routing; that keyword is not consumed by the registry — consumers that
-care can read the raw schema document via `EmbeddedFS()` or by carrying
-their own copy.
+The seed manifest uses `default_render_target` (a panel ID) for host-side
+routing hints; that keyword is not consumed by the registry — consumers
+that care can read the raw schema document via `EmbeddedFS()` or by
+carrying their own copy.
 
 ## Plugin-supplied manifests
 

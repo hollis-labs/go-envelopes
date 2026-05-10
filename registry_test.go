@@ -21,8 +21,8 @@ func TestLoadCore_seedsCoreCatalog(t *testing.T) {
 		"table-card",
 		"document-viewer",
 		"question-form",
-		"session-task",          // declared without schema (no schema file)
-		"message-request",       // declared without component or schema
+		"session-task",    // declared without schema (no schema file)
+		"message-request", // declared without component or schema
 		"chat-loop-budget-soft-warning",
 	}
 	for _, name := range mustHave {

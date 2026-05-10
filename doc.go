@@ -8,6 +8,6 @@
 // other transport — those concerns live in consumer apps. It also does not
 // persist envelope instances; storage is per-host.
 //
-// The companion ts-envelopes package consumes the same manifest from the
-// repo root for parity between Go and TypeScript hosts.
+// A TypeScript companion package consumes the same YAML manifest for
+// parity between Go and TypeScript host applications.
 package envelopes

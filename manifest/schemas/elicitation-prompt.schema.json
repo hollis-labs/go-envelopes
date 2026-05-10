@@ -34,7 +34,7 @@
     "origin": {
       "type": "string",
       "enum": ["server", "client"],
-      "description": "Where the elicitation was issued: server (Nanite's own tool) or client (external MCP server)."
+      "description": "Where the elicitation was issued: server (the host's own tool) or client (external MCP server)."
     },
     "timeout_at": {
       "type": "string",

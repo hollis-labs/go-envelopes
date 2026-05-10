@@ -2,9 +2,9 @@
 
 `go-envelopes` ships a core catalog of envelope types and exposes a
 runtime API for plugin-SDK consumers to register additional types
-alongside it. This is a first-class concern, not a retrofit — Nanite
-plugins, and any other host embedding `hollis-labs/go-plugin`, can extend
-the catalog at runtime.
+alongside it. This is a first-class concern, not a retrofit — any host
+embedding a Hollis Labs plugin runtime (or its own equivalent) can
+extend the catalog at runtime.
 
 ## Surface
 
