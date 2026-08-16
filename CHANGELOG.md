@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- `report-card` schema gained an optional `session_link` object
+  (`{label, url}`) — a link back to the full session/task/run a report
+  distills, so hosts can render "summary + link" instead of a raw
+  transcript dump. Backward compatible: existing payloads without the
+  field remain valid.
+
 ## [0.1.1] - 2026-05-10
 
 First public release. No public Go API changes vs `v0.1.0`; this is a

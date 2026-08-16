@@ -69,6 +69,25 @@
         "additionalProperties": false
       },
       "description": "Action buttons shown at the bottom."
+    },
+    "session_link": {
+      "type": "object",
+      "required": [
+        "label",
+        "url"
+      ],
+      "properties": {
+        "label": {
+          "type": "string",
+          "description": "Link text, e.g. \"View full session\"."
+        },
+        "url": {
+          "type": "string",
+          "description": "Destination for the link — an http(s) URL when the full session/task/run is directly web-viewable, or an opaque identifier/URI (e.g. a Torque task ID, a mux session ID) when no direct URL exists yet. Non-http(s) values render as plain text rather than a clickable link."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Optional link back to the full session/task/run this report distills — lets a host render 'summary + link' instead of a raw transcript dump."
     }
   },
   "default_render_target": "bottom_chat_drawer",
