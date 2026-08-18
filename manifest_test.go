@@ -20,13 +20,13 @@ func TestParseManifest_canonical(t *testing.T) {
 	}
 
 	// Spot-check entries: at least one type with a component (info-card)
-	// and at least one without (message-request — backend-only).
+	// and at least one without (session-task — backend-only).
 	var seenWithComponent, seenWithoutComponent bool
 	for _, e := range m.Core {
 		if e.Type == "info-card" && e.Component != "" && e.Export == "InfoCard" {
 			seenWithComponent = true
 		}
-		if e.Type == "message-request" && e.Component == "" {
+		if e.Type == "session-task" && e.Component == "" {
 			seenWithoutComponent = true
 		}
 	}
@@ -34,7 +34,7 @@ func TestParseManifest_canonical(t *testing.T) {
 		t.Error("expected info-card entry with component=...InfoCard, export=InfoCard")
 	}
 	if !seenWithoutComponent {
-		t.Error("expected message-request entry with no component (backend-only)")
+		t.Error("expected session-task entry with no component (backend-only)")
 	}
 }
 

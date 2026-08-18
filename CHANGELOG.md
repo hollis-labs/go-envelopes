@@ -20,6 +20,12 @@ adheres to [Semantic Versioning](https://semver.org/).
   host-side special-case persistence handling; cut alongside a host-side
   rebuild of structured multi-field user input as a composed primitive if
   the need resurfaces.
+- `message-request`/`message-reply`/`message-notification`/`message-handoff`
+  core types dropped from the manifest. Unfinished scaffolding for a
+  messaging-subsystem Card surface that was never built out with frontend
+  components or schemas, and redundant with the real `agent_messages.kind`
+  DB enum consumers already use to classify these wire kinds. Neither type
+  ever shipped a JSON Schema.
 
 ## [0.1.1] - 2026-05-10
 

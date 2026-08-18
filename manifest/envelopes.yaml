@@ -106,15 +106,6 @@ core:
   # Backend-only (registered for validation, no frontend component yet)
   - type: session-task
 
-  # Messaging subsystem. Four wire kinds get envelope content types so
-  # request/reply/notification/handoff payloads can be validated and
-  # rendered uniformly. No frontend component yet; registered for
-  # validation only.
-  - type: message-request
-  - type: message-reply
-  - type: message-notification
-  - type: message-handoff
-
   # Subagent spawn approval.
   - type: subagent-spawn-approval
     component: components/chat/envelopes/SubagentSpawnApprovalCard

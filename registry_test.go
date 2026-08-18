@@ -20,8 +20,7 @@ func TestLoadCore_seedsCoreCatalog(t *testing.T) {
 		"diff-card",
 		"table-card",
 		"document-viewer",
-		"session-task",    // declared without schema (no schema file)
-		"message-request", // declared without component or schema
+		"session-task", // declared without a frontend component
 		"chat-loop-budget-soft-warning",
 	}
 	for _, name := range mustHave {
@@ -44,12 +43,12 @@ func TestLoadCore_typesWithoutSchemaHaveNilDataSchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	spec, ok := r.Lookup("message-request")
+	spec, ok := r.Lookup("todo-list")
 	if !ok {
-		t.Fatal("message-request not registered")
+		t.Fatal("todo-list not registered")
 	}
 	if spec.DataSchema != nil {
-		t.Error("message-request has no schema file; DataSchema should be nil")
+		t.Error("todo-list has no schema file; DataSchema should be nil")
 	}
 }
 

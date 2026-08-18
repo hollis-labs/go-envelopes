@@ -68,12 +68,12 @@ func TestValidateEnvelope_unknownType(t *testing.T) {
 
 func TestValidateEnvelope_typeWithoutSchema(t *testing.T) {
 	r := mustLoad(t)
-	// message-request is declared but ships no schema file — validation
+	// todo-list is declared but ships no schema file — validation
 	// should pass on type-name alone.
 	env := &Envelope{
 		V:    1,
 		ID:   "env_4",
-		Type: "message-request",
+		Type: "todo-list",
 		Data: map[string]any{"anything": "goes"},
 	}
 	if err := r.ValidateEnvelope(env); err != nil {

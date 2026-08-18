@@ -29,7 +29,7 @@ core:
     export: ApprovalCard
     props: approval
 
-  - type: message-request
+  - type: session-task
     # backend-only — no React component
 ```
 
