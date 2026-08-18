@@ -47,7 +47,7 @@ func (r *Registry) ValidateEnvelope(env *Envelope) error {
 // ValidateResponse checks resp against the response-kind contract for the
 // envelope type that produced it. The envelope type is required because
 // per-type response shapes vary (e.g., a core "info-card" may emit only
-// ack/ui responses while "question-form" returns data).
+// ack/ui responses while "approval-card" returns data).
 //
 // Validation rules:
 //   - resp.V must equal ProtocolVersion.

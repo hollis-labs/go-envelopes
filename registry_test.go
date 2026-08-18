@@ -20,7 +20,6 @@ func TestLoadCore_seedsCoreCatalog(t *testing.T) {
 		"diff-card",
 		"table-card",
 		"document-viewer",
-		"question-form",
 		"session-task",    // declared without schema (no schema file)
 		"message-request", // declared without component or schema
 		"chat-loop-budget-soft-warning",

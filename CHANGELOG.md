@@ -13,6 +13,14 @@ adheres to [Semantic Versioning](https://semver.org/).
   transcript dump. Backward compatible: existing payloads without the
   field remain valid.
 
+### Removed
+- `question-form` core type dropped from the manifest, along with its
+  orphaned `manifest/schemas/question-form.schema.json`. It predated the
+  Cards primitive-composition model and was the only core type requiring
+  host-side special-case persistence handling; cut alongside a host-side
+  rebuild of structured multi-field user input as a composed primitive if
+  the need resurfaces.
+
 ## [0.1.1] - 2026-05-10
 
 First public release. No public Go API changes vs `v0.1.0`; this is a

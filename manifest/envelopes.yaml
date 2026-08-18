@@ -54,9 +54,6 @@ core:
     # proposal as the `proposal` prop.
     props: proposal
 
-  - type: question-form
-    # backend-only — InterviewCard renders via EnvelopeRenderer fallback path
-
   # Work system (todo/plan)
   - type: todo-list
     component: components/chat/envelopes/TodoListCard
