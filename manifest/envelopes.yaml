@@ -118,12 +118,6 @@ core:
     component: components/chat/envelopes/ChatLoopTerminatedCard
     export: ChatLoopTerminatedCard
 
-  # Chat-loop soft budget warning. Emitted once per generation when the
-  # loop crosses the strategy planner's soft max_turns budget without
-  # terminating. Signal-only; loop continues. Frontend component is
-  # intentionally omitted.
-  - type: chat-loop-budget-soft-warning
-
   # MCP elicitation/create mid-tool user prompt. Renders inline in chat
   # with boolean (accept/decline) or string (text input) input depending
   # on schema_type. User response routes back via the protocol's response

@@ -21,7 +21,6 @@ func TestLoadCore_seedsCoreCatalog(t *testing.T) {
 		"table-card",
 		"document-viewer",
 		"session-task", // declared without a frontend component
-		"chat-loop-budget-soft-warning",
 	}
 	for _, name := range mustHave {
 		spec, ok := r.Lookup(name)

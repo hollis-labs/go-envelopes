@@ -26,6 +26,12 @@ adheres to [Semantic Versioning](https://semver.org/).
   components or schemas, and redundant with the real `agent_messages.kind`
   DB enum consumers already use to classify these wire kinds. Neither type
   ever shipped a JSON Schema.
+- `chat-loop-budget-soft-warning` core type dropped from the manifest,
+  along with `manifest/schemas/chat-loop-budget-soft-warning.schema.json`.
+  It signaled a chat loop crossing a soft `max_turns` budget without ever
+  terminating the loop — a telemetry-only warning, not a real control.
+  Cut alongside the consuming host's removal of the soft `max_turns`
+  budget mechanism itself (nanite Phase 0 item 12).
 
 ## [0.1.1] - 2026-05-10
 
