@@ -67,13 +67,18 @@ func TestValidateEnvelope_unknownType(t *testing.T) {
 }
 
 func TestValidateEnvelope_typeWithoutSchema(t *testing.T) {
-	r := mustLoad(t)
-	// todo-list is declared but ships no schema file — validation
-	// should pass on type-name alone.
+	// fixture-no-schema is a synthetic manifest entry with no
+	// accompanying schema file (see fixtureManifestFS in
+	// registry_test.go) — validation should pass on type-name alone.
+	// No real core type is guaranteed to stay schema-less (Phase 6
+	// removed the last two, todo-list and plan-review), so this
+	// exercises the mechanism against a controlled fixture instead of
+	// coupling to manifest contents.
+	r := loadFixtureRegistry(t)
 	env := &Envelope{
 		V:    1,
 		ID:   "env_4",
-		Type: "todo-list",
+		Type: "fixture-no-schema",
 		Data: map[string]any{"anything": "goes"},
 	}
 	if err := r.ValidateEnvelope(env); err != nil {

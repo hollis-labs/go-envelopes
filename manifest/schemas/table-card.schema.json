@@ -2,7 +2,7 @@
   "$id": "table-card",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Table Card",
-  "description": "A sortable data table.",
+  "description": "A sortable data table, optionally with schema-validated row and/or column actions.",
   "type": "object",
   "required": [
     "columns",
@@ -30,6 +30,11 @@
           },
           "sortable": {
             "type": "boolean"
+          },
+          "actions": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/action" },
+            "description": "Column-scoped actions rendered inline within this column's cells. A response for one of these carries both action_id and column_key. Presence of any column action makes the table interactive (see root-level `actions` for the addressability requirement)."
           }
         },
         "additionalProperties": false
@@ -47,6 +52,48 @@
     "caption": {
       "type": "string",
       "description": "Optional table caption."
+    },
+    "actions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/action" },
+      "description": "Row-scoped actions rendered as a button group on every row. A response for one of these carries action_id and row_index (no column_key). Interactive tables (root-level `actions` and/or any column `actions`) must be emitted through a path that persists an EnvelopeInstance (e.g. the same emit mechanism approval-card/elicitation-prompt use) so the envelope has an id the frontend can POST a response against — the passive card_show path does not create one."
+    }
+  },
+  "$defs": {
+    "action": {
+      "type": "object",
+      "required": [
+        "id",
+        "label"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable action identifier. Echoed back verbatim as `action_id` in the response payload posted to POST /api/envelopes/{id}/respond. Not shown to the user."
+        },
+        "label": {
+          "type": "string",
+          "description": "Button text."
+        },
+        "style": {
+          "type": "string",
+          "enum": [
+            "default",
+            "primary",
+            "destructive"
+          ],
+          "description": "Visual emphasis. Defaults to \"default\" (a subtle/secondary button)."
+        },
+        "confirm": {
+          "type": "boolean",
+          "description": "When true, the client asks the user to confirm before submitting the response. Defaults to false."
+        },
+        "confirm_message": {
+          "type": "string",
+          "description": "Message shown in the confirmation prompt. Only meaningful when confirm is true."
+        }
+      },
+      "additionalProperties": false
     }
   },
   "default_render_target": "bottom_chat_drawer",

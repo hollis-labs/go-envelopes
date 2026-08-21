@@ -3,7 +3,34 @@ package envelopes
 import (
 	"context"
 	"testing"
+	"testing/fstest"
 )
+
+// fixtureManifestFS returns a synthetic manifest filesystem containing a
+// single core type, "fixture-no-schema", with no accompanying JSON Schema
+// file. Tests exercising LoadCore's "declared without schema" registration
+// path use this instead of coupling to whichever real manifest entry
+// happens to lack a schema at the time — that coupling is fragile by
+// construction (Phase 6 removed the last two real examples, todo-list and
+// plan-review; see manifest/envelopes.yaml).
+func fixtureManifestFS() fstest.MapFS {
+	return fstest.MapFS{
+		"manifest/envelopes.yaml": &fstest.MapFile{
+			Data: []byte("core:\n  - type: fixture-no-schema\n"),
+		},
+	}
+}
+
+// loadFixtureRegistry builds a Registry from fixtureManifestFS via the
+// public WithManifestFS test/fixture hook (registry.go).
+func loadFixtureRegistry(t *testing.T) *Registry {
+	t.Helper()
+	r, err := LoadCore(context.Background(), WithManifestFS(fixtureManifestFS()))
+	if err != nil {
+		t.Fatalf("LoadCore(fixture): %v", err)
+	}
+	return r
+}
 
 func TestLoadCore_seedsCoreCatalog(t *testing.T) {
 	r, err := LoadCore(context.Background())
@@ -38,16 +65,13 @@ func TestLoadCore_seedsCoreCatalog(t *testing.T) {
 }
 
 func TestLoadCore_typesWithoutSchemaHaveNilDataSchema(t *testing.T) {
-	r, err := LoadCore(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	spec, ok := r.Lookup("todo-list")
+	r := loadFixtureRegistry(t)
+	spec, ok := r.Lookup("fixture-no-schema")
 	if !ok {
-		t.Fatal("todo-list not registered")
+		t.Fatal("fixture-no-schema not registered")
 	}
 	if spec.DataSchema != nil {
-		t.Error("todo-list has no schema file; DataSchema should be nil")
+		t.Error("fixture-no-schema has no schema file; DataSchema should be nil")
 	}
 }
 

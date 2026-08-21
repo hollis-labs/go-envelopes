@@ -6,14 +6,67 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- `subagent-spawn-approval`'s `component`/`export` UI-rendering-hint fields
+  now point at `ApprovalCard` instead of a standalone
+  `SubagentSpawnApprovalCard` — the consuming host folds the type's UI
+  (risk badge, collapsible prompt/advanced sections, reason field) into a
+  composed `ApprovalCard` flavor discriminated by the envelope's `type` at
+  render time, per the "compose, don't multiply types" primitive-set
+  principle. The manifest `type` itself is unchanged (still
+  `subagent-spawn-approval`, schema unchanged) — only the two UI-hint
+  fields moved. No Go API or validation-behavior change.
+
 ### Added
 - `report-card` schema gained an optional `session_link` object
   (`{label, url}`) — a link back to the full session/task/run a report
   distills, so hosts can render "summary + link" instead of a raw
   transcript dump. Backward compatible: existing payloads without the
   field remain valid.
+- `list-card` schema gained an optional top-level `data_source` object
+  (`{kind, scope, scope_id, ...}`) and optional per-item `id`/`status`
+  fields, so a host can compose a live, re-fetching checklist (e.g. a
+  todo list) on top of the shared `list-card` primitive instead of
+  minting its own top-level type for it. `status` (`pending`/`done`)
+  renders a checkbox instead of a bullet/number; `data_source` signals
+  the frontend to re-fetch `items` at render time rather than trusting
+  the static array. Backward compatible: existing payloads without
+  these fields remain valid.
+- `confirmation-card` schema gained an optional top-level `data_source`
+  object (`{kind: "plan_approval", plan_id}`) and an optional
+  `request_changes_label`, so a host can compose a live plan-approval
+  confirmation on top of the shared `confirmation-card` primitive
+  instead of minting its own top-level type for it. `data_source`
+  signals the frontend to re-fetch live status at render time rather
+  than trusting only `prior_response`, and to route confirm/cancel
+  through the source's own mutation. Backward compatible: existing
+  payloads without these fields remain valid.
+- `table-card` schema gained an optional `$defs/action` definition plus
+  optional root-level `actions` (row-scoped) and column-level `actions`
+  (column-scoped) properties, so interactive tables can render
+  schema-validated button-group actions (`id`, `label`, `style`,
+  `confirm`, `confirm_message`) instead of a host inventing its own ad
+  hoc action shape. Backward compatible: existing payloads without
+  `actions` remain valid.
 
 ### Removed
+- `todo-list` core type dropped from the manifest. It never shipped a
+  JSON Schema (validation passed on type-name alone) and its own
+  frontend component always re-fetched via a live query rather than
+  reading a data payload — a pure pointer/trigger shape. Rebuilt as a
+  `list-card` composition (`data_source: {kind: "todos", scope,
+  scope_id}` + per-item `status`) instead of staying a separate
+  top-level type, per the "compose, don't multiply types" primitive-set
+  principle.
+- `plan-review` core type dropped from the manifest. Rebuilt as a
+  `list-card` + `confirmation-card` composition instead of staying a
+  separate top-level type: `list-card`'s schema gained an optional
+  `data_source: {kind: "plans", plan_id}` (live step list, per-step
+  toggle via the same mutation the standalone type used) and
+  `confirmation-card`'s schema gained an optional `data_source: {kind:
+  "plan_approval", plan_id}` plus `request_changes_label` (live
+  approve/reject/request-changes via the same mutations). Per the
+  "compose, don't multiply types" primitive-set principle.
 - `question-form` core type dropped from the manifest, along with its
   orphaned `manifest/schemas/question-form.schema.json`. It predated the
   Cards primitive-composition model and was the only core type requiring

@@ -2,7 +2,7 @@
   "$id": "list-card",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "List Card",
-  "description": "An ordered or unordered list with optional item actions.",
+  "description": "An ordered or unordered list with optional item actions. Also supports a live `data_source` pointer (composition target for the retired standalone `todo-list` type — see TASKS/phase-6/01-rebuild-todo-list-as-composition.md — and the retired standalone `plan-review` type — see TASKS/phase-6/02-rebuild-plan-review-as-composition.md) so the frontend can re-fetch items at render time instead of trusting a static snapshot.",
   "type": "object",
   "required": [
     "items"
@@ -29,6 +29,20 @@
           "icon": {
             "type": "string"
           },
+          "id": {
+            "type": "string",
+            "description": "Stable item identifier (e.g. a todo id). Required for a `status` item to be independently toggleable by a live data source."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "done",
+              "in_progress",
+              "skipped"
+            ],
+            "description": "Checkbox/done-state for a todo-style item (pending/done), or a plan-step state (pending/in_progress/done/skipped) when `data_source.kind` is \"plans\". When present the item renders a checkbox instead of a bullet/number. Omit for a plain (non-checkable) list item."
+          },
           "action": {
             "type": "object",
             "required": [
@@ -48,11 +62,41 @@
         },
         "additionalProperties": false
       },
-      "description": "List items."
+      "description": "List items. May be an empty placeholder array when `data_source` is set — the frontend re-fetches the real items live and does not trust this snapshot in that case."
     },
     "ordered": {
       "type": "boolean",
       "description": "Whether to show numbered list. Defaults to false."
+    },
+    "data_source": {
+      "type": "object",
+      "description": "Optional live-data-source pointer. When present, the frontend re-fetches items from this source at render time (and re-fetches again after each mutation) instead of trusting the static `items` array above.",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "todos",
+            "plans"
+          ],
+          "description": "The live-data-source kind. \"todos\" re-fetches via the todo store, scoped by `scope`/`scope_id`, and enables per-item toggle through the same mutation the old standalone `todo-list` envelope used. \"plans\" re-fetches a single plan's steps via `plan_id` and enables per-step toggle through the same mutation the old standalone `plan-review` envelope used."
+        },
+        "scope": {
+          "type": "string",
+          "description": "Todo scope (e.g. turn, session, project, workspace). Only used when kind=\"todos\"."
+        },
+        "scope_id": {
+          "type": "string",
+          "description": "Scope ID (session_id for turn/session; project_id for project). Only used when kind=\"todos\"."
+        },
+        "plan_id": {
+          "type": "string",
+          "description": "Plan id to re-fetch live. Required when kind=\"plans\"."
+        }
+      },
+      "additionalProperties": false
     }
   },
   "default_render_target": "bottom_chat_drawer",

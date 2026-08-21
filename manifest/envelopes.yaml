@@ -55,13 +55,26 @@ core:
     props: proposal
 
   # Work system (todo/plan)
-  - type: todo-list
-    component: components/chat/envelopes/TodoListCard
-    export: TodoListCard
-
-  - type: plan-review
-    component: components/chat/envelopes/PlanReviewCard
-    export: PlanReviewCard
+  #
+  # `todo-list` was retired as a standalone type (Phase 6,
+  # TASKS/phase-6/01-rebuild-todo-list-as-composition.md) — it is now a
+  # `list-card` composition: `list-card`'s schema grew a `data_source`
+  # pointer (`{kind: "todos", scope, scope_id}`) plus a per-item `status`
+  # field, and the emitter (internal/selftools/self_tools_transport.go's
+  # callTodoList) produces `type: "list-card"` instead of its own type.
+  # See manifest/schemas/list-card.schema.json.
+  #
+  # `plan-review` was retired as a standalone type (Phase 6,
+  # TASKS/phase-6/02-rebuild-plan-review-as-composition.md) — it is now a
+  # `list-card` + `confirmation-card` composition: `list-card`'s schema grew
+  # an optional `plan_id` (live step list + toggle via useTogglePlanStep)
+  # and `confirmation-card`'s schema grew the same optional `plan_id` (live
+  # approve/reject/request-changes via useApprovePlan/useRejectPlan). The
+  # emitter (internal/selftools/self_tools.go's plan_create tool
+  # description) now instructs the agent to emit both envelope blocks
+  # instead of a single `plan-review` block. See
+  # manifest/schemas/list-card.schema.json and
+  # manifest/schemas/confirmation-card.schema.json.
 
   # Reusable primitives (Phase 7)
   - type: info-card
@@ -106,10 +119,18 @@ core:
   # Backend-only (registered for validation, no frontend component yet)
   - type: session-task
 
-  # Subagent spawn approval.
+  # Subagent spawn approval. Composed over ApprovalCard (TASKS/phase-6/03) —
+  # same component/export as approval-card, discriminated internally by
+  # envelope.type. Subagent-specific fields (run_id/role/prompt/mode/...)
+  # ride in `data` alongside the same risk_level convention approval-card
+  # uses. Wire type stays `subagent-spawn-approval` unchanged: the real
+  # emitter (internal/subagent/service.go), the registered response handler
+  # (internal/chat/envelope_response_subagent.go), and the recovery-
+  # rehydration gate (internal/api/sessions.go) all key off this literal
+  # string. See docs/engineering/architecture/08-cards.md.
   - type: subagent-spawn-approval
-    component: components/chat/envelopes/SubagentSpawnApprovalCard
-    export: SubagentSpawnApprovalCard
+    component: components/chat/envelopes/ApprovalCard
+    export: ApprovalCard
 
   # Chat-loop terminal pause envelope. Renders when the loop exits
   # abnormally (max turns, hard ceiling, idle timeout, runaway failures)

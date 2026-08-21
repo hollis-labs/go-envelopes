@@ -2,7 +2,7 @@
   "$id": "confirmation-card",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Confirmation Card",
-  "description": "A confirmation dialog with risk-level-styled buttons.",
+  "description": "A confirmation dialog with risk-level-styled buttons. Also supports a live `data_source` pointer (composition target for the retired standalone `plan-review` type — see TASKS/phase-6/02-rebuild-plan-review-as-composition.md) so the frontend can re-fetch live status at render time instead of trusting only `prior_response`.",
   "type": "object",
   "required": ["title", "message"],
   "properties": {
@@ -22,10 +22,31 @@
       "type": "string",
       "description": "Label for the cancel button. Defaults to Cancel."
     },
+    "request_changes_label": {
+      "type": "string",
+      "description": "Optional label for a third, non-committal action (e.g. \"Request changes\"). Only rendered when present. Currently only meaningful when `data_source.kind` is \"plan_approval\"."
+    },
     "risk": {
       "type": "string",
       "enum": ["low", "medium", "high"],
       "description": "Risk level. Defaults to low."
+    },
+    "data_source": {
+      "type": "object",
+      "description": "Optional live-data-source pointer. When present, the frontend re-fetches live status from this source at render time (rather than trusting only `prior_response`) and routes confirm/cancel through the source's own mutation instead of the generic typed-response POST.",
+      "required": ["kind"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["plan_approval"],
+          "description": "The live-data-source kind. \"plan_approval\" re-fetches the plan via `plan_id` and routes confirm/cancel through the same approve/reject mutation the old standalone `plan-review` envelope used."
+        },
+        "plan_id": {
+          "type": "string",
+          "description": "Plan id to re-fetch live and approve/reject. Required when kind=\"plan_approval\"."
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false
