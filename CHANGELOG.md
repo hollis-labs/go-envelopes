@@ -6,6 +6,33 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-24
+
+### Changed
+- **Breaking (wire value).** `session-task`'s `status` enum now spells the
+  terminal caller-stopped state the US way: `cancelled` -> `canceled`. Nanite
+  adopted US English as its project standard and this schema is the authority
+  for that value — the host generates its TypeScript types from it, so the
+  value cannot be migrated consumer-side. A payload emitting `"cancelled"` is
+  now invalid; one emitting `"canceled"` is valid.
+
+  Hosts that persist `session-task` payloads need a data migration for the
+  stored value. Nanite's is `148_us_english_canceled_status.sql`. Note that
+  validation is emit-path only in that host — `ValidateEnvelope` checks
+  kind/version/registration and never the payload schema — so read paths there
+  were unaffected; confirm the same before assuming it holds elsewhere.
+
+### Known limitations
+- **This release is deliberately half-migrated.** The Go status and error
+  vocabulary keeps the British spelling: `ResponseStatusCancelled`
+  (`"cancelled"`) and `ErrorCodeUserCancelled` (`"user-cancelled"`) in
+  `types.go` are unchanged. Renaming them is source-breaking for consumers
+  that use the identifiers, and `ResponseStatusCancelled`'s value is persisted
+  by at least one of them, so it needs a coordinated change with its own data
+  migration rather than a spelling sweep. Finishing it is a follow-on and will
+  require another breaking bump.
+
+
 ## [0.2.0] - 2026-08-23
 
 ### Changed
