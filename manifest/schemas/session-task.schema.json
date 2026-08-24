@@ -16,7 +16,7 @@
     },
     "status": {
       "type": "string",
-      "enum": ["pending", "in_progress", "completed", "failed", "cancelled"],
+      "enum": ["pending", "in_progress", "completed", "failed", "canceled"],
       "description": "Current task status."
     },
     "description": {
