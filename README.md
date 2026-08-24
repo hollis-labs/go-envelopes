@@ -12,7 +12,7 @@ not persist envelope instances; storage is host-defined.
 
 ## Status
 
-`v0.1.x` — pre-1.0. Public API may shift between minor versions; see
+`v0.2.x` — pre-1.0. Public API may shift between minor versions; see
 the CHANGELOG for breaking changes. The wire-format major version
 (`Envelope.V`) is independent of the library version.
 

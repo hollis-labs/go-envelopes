@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-23
+
 ### Changed
 - `subagent-spawn-approval`'s `component`/`export` UI-rendering-hint fields
   now point at `ApprovalCard` instead of a standalone
