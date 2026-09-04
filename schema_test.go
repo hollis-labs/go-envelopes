@@ -2,6 +2,7 @@ package envelopes
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -160,5 +161,68 @@ ui:
 	}
 	if failures[0].Actual == nil || failures[0].Actual.Type != "string" || failures[0].Actual.Value != nil {
 		t.Fatalf("plugin actual must summarize, not echo, payload: %#v", failures[0].Actual)
+	}
+}
+
+func TestValidationError_loggingSurfacesDoNotLeakPayloadValues(t *testing.T) {
+	registry := NewRegistry()
+	schema := []byte(`{
+  "type": "object",
+  "required": ["token"],
+  "properties": {"token": {"type": "string", "pattern": "^public-[a-z]+$"}},
+  "additionalProperties": false
+}`)
+	if err := registry.RegisterTypeFromManifest([]byte("type: demo.secret\n"), schema, "demo"); err != nil {
+		t.Fatal(err)
+	}
+	secret := "SECRET-token-12345"
+	err := registry.ValidateEnvelope(&Envelope{
+		V: ProtocolVersion, ID: "secret", Type: "demo.secret",
+		Data: map[string]any{"token": secret},
+	})
+	var validationError *ValidationError
+	if !errors.As(err, &validationError) {
+		t.Fatalf("validation error = %v", err)
+	}
+	if strings.Contains(err.Error(), secret) {
+		t.Fatalf("Error leaked raw payload value: %q", err.Error())
+	}
+	details := validationError.Details()
+	if len(details) != 1 || details[0].Message != "value does not match required pattern" {
+		t.Fatalf("safe validation details = %#v", details)
+	}
+	if strings.Contains(details[0].Message, secret) {
+		t.Fatalf("failure message leaked raw payload value: %q", details[0].Message)
+	}
+	raw, err := json.Marshal(details)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), secret) {
+		t.Fatalf("marshaled validation details leaked raw payload value: %s", raw)
+	}
+
+	propertySchema := []byte(`{
+  "type": "object",
+  "propertyNames": {"pattern": "^[a-z]+$"}
+}`)
+	if err := registry.RegisterTypeFromManifest([]byte("type: demo.secret-property\n"), propertySchema, "demo"); err != nil {
+		t.Fatal(err)
+	}
+	secretProperty := "SECRET_PROPERTY_12345"
+	err = registry.ValidateEnvelope(&Envelope{
+		V: ProtocolVersion, ID: "secret-property", Type: "demo.secret-property",
+		Data: map[string]any{secretProperty: true},
+	})
+	if !errors.As(err, &validationError) {
+		t.Fatalf("property-name validation error = %v", err)
+	}
+	propertyValidationErr := err
+	propertyDetails, marshalErr := json.Marshal(validationError.Details())
+	if marshalErr != nil {
+		t.Fatal(marshalErr)
+	}
+	if strings.Contains(propertyValidationErr.Error(), secretProperty) || strings.Contains(string(propertyDetails), secretProperty) {
+		t.Fatalf("validation diagnostics leaked raw property name: error=%q details=%s", propertyValidationErr, propertyDetails)
 	}
 }

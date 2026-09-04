@@ -41,14 +41,9 @@ func TypeScript(catalog envelopes.Catalog, options TypeScriptOptions) ([]byte, e
 		if err := decoder.Decode(&decoded); err != nil {
 			return nil, fmt.Errorf("codegen: parse schema for %q: %w", resource.Type, err)
 		}
-		var schema map[string]any
-		var booleanSchema *bool
-		switch value := decoded.(type) {
+		switch decoded.(type) {
 		case map[string]any:
-			schema = value
 		case bool:
-			booleanSchema = new(bool)
-			*booleanSchema = value
 		default:
 			return nil, fmt.Errorf("codegen: schema for %q is neither an object nor a boolean", resource.Type)
 		}
@@ -56,7 +51,7 @@ func TypeScript(catalog envelopes.Catalog, options TypeScriptOptions) ([]byte, e
 		if envelopeType, ok := registered[resource.Type]; ok && envelopeType.TypeScript.DataType != "" {
 			name = envelopeType.TypeScript.DataType
 		}
-		resources = append(resources, schemaInput{resource: resource, schema: schema, booleanSchema: booleanSchema, dataType: name})
+		resources = append(resources, schemaInput{resource: resource, schema: decoded, dataType: name})
 		seenResources[resource.Type] = true
 	}
 	for _, envelopeType := range catalog.Types {
@@ -89,8 +84,9 @@ func TypeScript(catalog envelopes.Catalog, options TypeScriptOptions) ([]byte, e
 		catalog.Source.ProtocolVersion, catalog.Source.ManifestDigest)
 
 	for _, input := range resources {
+		root, _ := input.schema.(map[string]any)
 		generator := schemaGenerator{
-			root:     input.schema,
+			root:     root,
 			rootName: strings.TrimSuffix(input.dataType, "Data"),
 			refs:     make(map[string]string),
 		}
@@ -99,16 +95,10 @@ func TypeScript(catalog envelopes.Catalog, options TypeScriptOptions) ([]byte, e
 			return nil, fmt.Errorf("codegen: %s: %w", input.resource.Type, err)
 		}
 		writeComment(&out, schemaDescription(input.schema, input.resource.Type))
-		if input.booleanSchema != nil {
-			typeName := "never"
-			if *input.booleanSchema {
-				typeName = "unknown"
-			}
-			fmt.Fprintf(&out, "export type %s = %s;\n\n", input.dataType, typeName)
-		} else if input.schema == nil {
+		if input.schema == nil {
 			fmt.Fprintf(&out, "export type %s = unknown;\n\n", input.dataType)
 		} else if canEmitInterface(input.schema) {
-			fmt.Fprintf(&out, "export interface %s %s\n\n", input.dataType, generator.objectBody(input.schema))
+			fmt.Fprintf(&out, "export interface %s %s\n\n", input.dataType, generator.objectBody(root))
 		} else {
 			fmt.Fprintf(&out, "export type %s = %s;\n\n", input.dataType, generator.typeFor(input.schema))
 		}
@@ -164,10 +154,9 @@ func TypeScript(catalog envelopes.Catalog, options TypeScriptOptions) ([]byte, e
 }
 
 type schemaInput struct {
-	resource      envelopes.SchemaResource
-	schema        map[string]any
-	booleanSchema *bool
-	dataType      string
+	resource envelopes.SchemaResource
+	schema   any
+	dataType string
 }
 
 type schemaGenerator struct {
@@ -180,7 +169,7 @@ type schemaGenerator struct {
 type definition struct {
 	pointer string
 	name    string
-	schema  map[string]any
+	schema  any
 }
 
 func validateDeclarationNames(resources []schemaInput) error {
@@ -193,8 +182,9 @@ func validateDeclarationNames(resources []schemaInput) error {
 		if resource.schema == nil {
 			continue
 		}
+		root, _ := resource.schema.(map[string]any)
 		generator := schemaGenerator{
-			root:     resource.schema,
+			root:     root,
 			rootName: strings.TrimSuffix(resource.dataType, "Data"),
 			refs:     make(map[string]string),
 		}
@@ -210,6 +200,9 @@ func validateDeclarationNames(resources []schemaInput) error {
 }
 
 func (g *schemaGenerator) indexDefinitions() {
+	if g.root == nil {
+		return
+	}
 	definitions, _ := g.root["$defs"].(map[string]any)
 	names := make([]string, 0, len(definitions))
 	for name := range definitions {
@@ -217,8 +210,10 @@ func (g *schemaGenerator) indexDefinitions() {
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		schema, _ := definitions[name].(map[string]any)
-		if schema == nil {
+		schema := definitions[name]
+		switch schema.(type) {
+		case map[string]any, bool:
+		default:
 			continue
 		}
 		pointer := "#/$defs/" + escapePointerToken(name)
@@ -232,7 +227,7 @@ func (g *schemaGenerator) writeDefinitions(out *strings.Builder) error {
 	for _, definition := range g.definitions {
 		writeComment(out, schemaDescription(definition.schema, "Schema definition "+definition.name))
 		if canEmitInterface(definition.schema) {
-			fmt.Fprintf(out, "export interface %s %s\n\n", definition.name, g.objectBody(definition.schema))
+			fmt.Fprintf(out, "export interface %s %s\n\n", definition.name, g.objectBody(definition.schema.(map[string]any)))
 		} else {
 			fmt.Fprintf(out, "export type %s = %s;\n\n", definition.name, g.typeFor(definition.schema))
 		}
@@ -240,10 +235,24 @@ func (g *schemaGenerator) writeDefinitions(out *strings.Builder) error {
 	return nil
 }
 
-func (g *schemaGenerator) typeFor(schema map[string]any) string {
+func (g *schemaGenerator) typeFor(schema any) string {
 	if schema == nil {
 		return "unknown"
 	}
+	if booleanSchema, ok := schema.(bool); ok {
+		if booleanSchema {
+			return "unknown"
+		}
+		return "never"
+	}
+	object, ok := schema.(map[string]any)
+	if !ok {
+		return "unknown"
+	}
+	return g.typeForObject(object)
+}
+
+func (g *schemaGenerator) typeForObject(schema map[string]any) string {
 	if ref, _ := schema["$ref"].(string); ref != "" {
 		if name, ok := g.refs[ref]; ok {
 			return name
@@ -264,8 +273,7 @@ func (g *schemaGenerator) typeFor(schema map[string]any) string {
 		if variants, ok := schema[keyword].([]any); ok && len(variants) > 0 {
 			parts := make([]string, 0, len(variants))
 			for _, variant := range variants {
-				variantSchema, _ := variant.(map[string]any)
-				parts = append(parts, g.typeFor(variantSchema))
+				parts = append(parts, g.typeFor(variant))
 			}
 			return strings.Join(parts, " | ")
 		}
@@ -273,8 +281,7 @@ func (g *schemaGenerator) typeFor(schema map[string]any) string {
 	if variants, ok := schema["allOf"].([]any); ok && len(variants) > 0 {
 		parts := make([]string, 0, len(variants))
 		for _, variant := range variants {
-			variantSchema, _ := variant.(map[string]any)
-			parts = append(parts, g.typeFor(variantSchema))
+			parts = append(parts, g.typeFor(variant))
 		}
 		return strings.Join(parts, " & ")
 	}
@@ -305,8 +312,7 @@ func (g *schemaGenerator) typeFor(schema map[string]any) string {
 	case "string":
 		return "string"
 	case "array":
-		items, _ := schema["items"].(map[string]any)
-		itemType := g.typeFor(items)
+		itemType := g.typeFor(schema["items"])
 		if strings.Contains(itemType, " | ") || strings.Contains(itemType, " & ") {
 			itemType = "(" + itemType + ")"
 		}
@@ -336,19 +342,24 @@ func (g *schemaGenerator) objectBody(schema map[string]any) string {
 	}
 	sort.Strings(names)
 	if len(names) == 0 {
-		if additional, ok := schema["additionalProperties"].(map[string]any); ok {
-			return "Record<string, " + g.typeFor(additional) + ">"
-		}
-		if allowed, ok := schema["additionalProperties"].(bool); ok && allowed {
+		additional, present := schema["additionalProperties"]
+		if !present {
 			return "Record<string, unknown>"
 		}
-		return "Record<string, never>"
+		if allowed, ok := additional.(bool); ok {
+			if allowed {
+				return "Record<string, unknown>"
+			}
+			return "Record<string, never>"
+		}
+		return "Record<string, " + g.typeFor(additional) + ">"
 	}
 	var out strings.Builder
 	out.WriteString("{\n")
 	for _, name := range names {
-		property, _ := properties[name].(map[string]any)
-		if description, _ := property["description"].(string); description != "" {
+		property := properties[name]
+		propertyObject, _ := property.(map[string]any)
+		if description, _ := propertyObject["description"].(string); description != "" {
 			out.WriteString("  /** " + commentText(description) + " */\n")
 		}
 		optional := "?"
@@ -356,6 +367,14 @@ func (g *schemaGenerator) objectBody(schema map[string]any) string {
 			optional = ""
 		}
 		fmt.Fprintf(&out, "  %s%s: %s;\n", tsPropertyName(name), optional, g.typeFor(property))
+	}
+	additional, present := schema["additionalProperties"]
+	allowed, explicitlyBoolean := additional.(bool)
+	if !present || !explicitlyBoolean || allowed {
+		// An index signature of unknown preserves JSON Schema's default-open
+		// object semantics without incorrectly applying a typed
+		// additionalProperties schema to the named properties too.
+		out.WriteString("  [key: string]: unknown;\n")
 	}
 	out.WriteString("}")
 	return out.String()
@@ -369,11 +388,15 @@ func generatedTypeNames(resources []schemaInput) []string {
 	return names
 }
 
-func schemaDescription(schema map[string]any, fallback string) string {
-	if description, _ := schema["description"].(string); description != "" {
+func schemaDescription(schema any, fallback string) string {
+	object, _ := schema.(map[string]any)
+	if object == nil {
+		return fallback
+	}
+	if description, _ := object["description"].(string); description != "" {
 		return description
 	}
-	if title, _ := schema["title"].(string); title != "" {
+	if title, _ := object["title"].(string); title != "" {
 		return title
 	}
 	return fallback
@@ -396,21 +419,36 @@ func schemaTypeNames(value any) []string {
 	return names
 }
 
-func isObjectSchema(schema map[string]any) bool {
-	for _, typeName := range schemaTypeNames(schema["type"]) {
+func isObjectSchema(schema any) bool {
+	object, _ := schema.(map[string]any)
+	if object == nil {
+		return false
+	}
+	for _, typeName := range schemaTypeNames(object["type"]) {
 		if typeName == "object" {
 			return true
 		}
 	}
-	_, ok := schema["properties"].(map[string]any)
+	_, ok := object["properties"].(map[string]any)
 	return ok
 }
 
-func canEmitInterface(schema map[string]any) bool {
+func canEmitInterface(schema any) bool {
 	if !isObjectSchema(schema) {
 		return false
 	}
-	properties, _ := schema["properties"].(map[string]any)
+	object := schema.(map[string]any)
+	if types := schemaTypeNames(object["type"]); len(types) > 0 {
+		if len(types) != 1 || types[0] != "object" {
+			return false
+		}
+	}
+	for _, keyword := range []string{"$ref", "const", "enum", "oneOf", "anyOf", "allOf"} {
+		if _, present := object[keyword]; present {
+			return false
+		}
+	}
+	properties, _ := object["properties"].(map[string]any)
 	return len(properties) > 0
 }
 

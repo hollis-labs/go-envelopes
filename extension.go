@@ -34,6 +34,10 @@ var pluginTypeName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*(?:\.[a-z0-9][a-z0-9
 //   - spec.Source is forced to TypeSourcePlugin regardless of input,
 //     keeping UnregisterType's core-type protection intact. PluginID is
 //     preserved as supplied.
+//   - A supplied DataSchemaDocument or PayloadSchemaDocument is authoritative:
+//     RegisterType compiles it and replaces the corresponding compiled schema,
+//     preventing validation and exported source from describing different
+//     contracts.
 //   - The first registration wins. A second call for the same name
 //     returns ErrConflict; the library does not silently overwrite.
 //
@@ -55,12 +59,19 @@ func (r *Registry) RegisterType(spec TypeSpec) error {
 	if !spec.ResponseKind.IsValid() {
 		return fmt.Errorf("%w: %q", ErrUnsupportedKind, spec.ResponseKind)
 	}
-	if spec.DataSchema == nil && spec.DataSchemaDocument != nil {
+	if spec.DataSchemaDocument != nil {
 		compiled, err := compileSchemaDocument(spec.DataSchemaDocument)
 		if err != nil {
 			return fmt.Errorf("envelopes: compile schema for %q: %w", spec.Name, err)
 		}
 		spec.DataSchema = compiled
+	}
+	if spec.PayloadSchemaDocument != nil {
+		compiled, err := compileSchemaDocument(spec.PayloadSchemaDocument)
+		if err != nil {
+			return fmt.Errorf("envelopes: compile payload schema for %q: %w", spec.Name, err)
+		}
+		spec.PayloadSchema = compiled
 	}
 	if spec.TypeScript.DataType == "" {
 		spec.TypeScript.DataType = TypeScriptDataTypeName(spec.Name)

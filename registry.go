@@ -218,7 +218,15 @@ func (r *Registry) registerLocked(spec TypeSpec) error {
 	if spec.TypeScript.DataType == "" {
 		spec.TypeScript.DataType = TypeScriptDataTypeName(spec.Name)
 	}
-	spec = cloneTypeSpec(spec)
+	var err error
+	spec.UIMetadata, err = normalizeStringAnyMap(spec.UIMetadata)
+	if err != nil {
+		return fmt.Errorf("envelopes: normalize UI metadata for %q: %w", spec.Name, err)
+	}
+	spec.TypeScript.Import.Extra, err = normalizeStringAnyMap(spec.TypeScript.Import.Extra)
+	if err != nil {
+		return fmt.Errorf("envelopes: normalize TypeScript import metadata for %q: %w", spec.Name, err)
+	}
 	r.types[spec.Name] = spec
 	r.recordSchemaResourceLocked(spec)
 	return nil

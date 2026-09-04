@@ -2,6 +2,9 @@ package codegen_test
 
 import (
 	"context"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -149,5 +152,78 @@ func TestTypeScript_supportsBooleanSchemas(t *testing.T) {
 	}
 	if !strings.Contains(generated, "export type DemoNeverData = never;") {
 		t.Fatalf("false schema output missing:\n%s", generated)
+	}
+}
+
+func TestTypeScript_supportsNestedBooleanSchemasAndOpenObjects(t *testing.T) {
+	registry := envelopes.NewRegistry()
+	schema := []byte(`{
+  "type": "object",
+  "properties": {
+    "open": {"type": "object"},
+    "openWithKnown": {"type": "object", "properties": {"known": {"type": "string"}}},
+    "anything": true,
+    "impossible": false,
+    "neverItems": {"type": "array", "items": false},
+    "stringOrNever": {"oneOf": [{"type": "string"}, false]}
+  },
+  "additionalProperties": false
+}`)
+	if err := registry.RegisterTypeFromManifest([]byte("type: demo.shapes\n"), schema, "demo"); err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := registry.ExportCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, err := codegen.TypeScript(catalog, codegen.TypeScriptOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated := string(output)
+	for _, required := range []string{
+		"open?: Record<string, unknown>;",
+		"openWithKnown?: {",
+		"anything?: unknown;",
+		"impossible?: never;",
+		"neverItems?: never[];",
+		"stringOrNever?: string | never;",
+	} {
+		if !strings.Contains(generated, required) {
+			t.Fatalf("nested schema output missing %q:\n%s", required, generated)
+		}
+	}
+
+	tsc, err := exec.LookPath("tsc")
+	if err != nil {
+		t.Skip("tsc is not installed; string-level contract assertions passed")
+	}
+	directory := t.TempDir()
+	if err := os.WriteFile(filepath.Join(directory, "generated.ts"), output, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	usage := `import type { DemoShapesData } from "./generated";
+
+const valid: DemoShapesData = {
+  open: { arbitrary: 42 },
+  openWithKnown: { known: "yes", arbitrary: 42 },
+  anything: { nested: true },
+  neverItems: [],
+  stringOrNever: "accepted",
+};
+
+// @ts-expect-error A false property schema rejects every supplied value.
+const invalid: DemoShapesData = { impossible: "must-not-compile" };
+
+void valid;
+void invalid;
+`
+	if err := os.WriteFile(filepath.Join(directory, "usage.ts"), []byte(usage), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command(tsc, "--noEmit", "--strict", "--skipLibCheck", "--target", "ES2022", "usage.ts")
+	command.Dir = directory
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("generated TypeScript semantic check: %v\n%s", err, output)
 	}
 }

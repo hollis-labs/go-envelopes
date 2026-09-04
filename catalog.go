@@ -19,8 +19,11 @@ const (
 )
 
 // SourceIdentity identifies the module and exact embedded content that
-// produced a catalog. ModuleVersion is the version selected by the consuming
-// Go build; it is "(devel)" only for an unversioned local build.
+// produced a catalog. Module and ModuleVersion name the code that supplied the
+// embedded assets. A local replacement retains ModulePath but uses
+// "(devel; local replacement)" rather than falsely reporting the requested
+// version or exposing the replacement's filesystem path. A versioned module
+// replacement reports the replacement module path and version.
 type SourceIdentity struct {
 	Module          string `json:"module"`
 	ModuleVersion   string `json:"moduleVersion"`
@@ -72,7 +75,8 @@ type SchemaResource struct {
 // includes plugin registrations and their schemas when they were registered
 // with a SchemaDocument (RegisterTypeFromManifest does this automatically).
 // It returns an error when caller-supplied extension metadata cannot be
-// represented as JSON.
+// represented as JSON. RegisterType normally rejects such metadata before it
+// can enter a registry; the error return also protects snapshot encoding.
 func (r *Registry) ExportCatalog() (Catalog, error) {
 	r.mu.RLock()
 	manifestYAML := append([]byte(nil), r.manifestYAML...)
@@ -117,11 +121,12 @@ func (r *Registry) ExportCatalog() (Catalog, error) {
 	if len(manifestYAML) > 0 || len(manifestSchema) > 0 || len(coreResources) > 0 {
 		manifestDigest = digestCatalogParts(string(manifestYAML), manifestSchema, coreResources)
 	}
+	identity := selectedModuleIdentity()
 	catalog := Catalog{
 		FormatVersion: CatalogFormatVersion,
 		Source: SourceIdentity{
-			Module:          ModulePath,
-			ModuleVersion:   selectedModuleVersion(),
+			Module:          identity.Path,
+			ModuleVersion:   identity.Version,
 			ProtocolVersion: ProtocolVersion,
 			ManifestDigest:  manifestDigest,
 		},
@@ -138,27 +143,46 @@ func (r *Registry) ExportCatalog() (Catalog, error) {
 	return catalog, nil
 }
 
-func selectedModuleVersion() string {
+type moduleIdentity struct {
+	Path    string
+	Version string
+}
+
+func selectedModuleIdentity() moduleIdentity {
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
-		return "(devel)"
+		return moduleIdentity{Path: ModulePath, Version: "(devel)"}
+	}
+	return moduleIdentityFromBuildInfo(info)
+}
+
+func moduleIdentityFromBuildInfo(info *debug.BuildInfo) moduleIdentity {
+	if info == nil {
+		return moduleIdentity{Path: ModulePath, Version: "(devel)"}
 	}
 	if info.Main.Path == ModulePath {
-		if info.Main.Version != "" {
-			return info.Main.Version
-		}
-		return "(devel)"
+		return identityForModule(&info.Main)
 	}
 	for _, dep := range info.Deps {
-		if dep.Path != ModulePath {
+		if dep == nil || dep.Path != ModulePath {
 			continue
 		}
-		if dep.Version != "" {
-			return dep.Version
-		}
-		return "(devel)"
+		return identityForModule(dep)
 	}
-	return "(devel)"
+	return moduleIdentity{Path: ModulePath, Version: "(devel)"}
+}
+
+func identityForModule(module *debug.Module) moduleIdentity {
+	if module != nil && module.Replace != nil {
+		if module.Replace.Version == "" || module.Replace.Version == "(devel)" {
+			return moduleIdentity{Path: ModulePath, Version: "(devel; local replacement)"}
+		}
+		return moduleIdentity{Path: module.Replace.Path, Version: module.Replace.Version}
+	}
+	if module != nil && module.Version != "" {
+		return moduleIdentity{Path: ModulePath, Version: module.Version}
+	}
+	return moduleIdentity{Path: ModulePath, Version: "(devel)"}
 }
 
 func digestCatalog(catalog Catalog) (string, error) {

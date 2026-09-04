@@ -244,6 +244,74 @@ func TestRegisterType_compilesProvidedSchemaDocument(t *testing.T) {
 	}
 }
 
+func TestRegisterType_schemaDocumentsAreAuthoritative(t *testing.T) {
+	dataDocument, err := NewSchemaDocument("plugin://demo/authoritative-data.schema.json", []byte(`{
+  "type": "object",
+  "required": ["fromDocument"],
+  "properties": {"fromDocument": {"type": "string"}},
+  "additionalProperties": false
+}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	payloadDocument, err := NewSchemaDocument("plugin://demo/authoritative-payload.schema.json", []byte(`{"type":"string"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	oppositeDocument, err := NewSchemaDocument("plugin://demo/opposite.schema.json", []byte(`false`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	opposite, err := compileSchemaDocument(oppositeDocument)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	registry := NewRegistry()
+	if err := registry.RegisterType(TypeSpec{
+		Name:                  "demo.authoritative",
+		PluginID:              "demo",
+		DataSchema:            opposite,
+		DataSchemaDocument:    dataDocument,
+		PayloadSchema:         opposite,
+		PayloadSchemaDocument: payloadDocument,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := registry.ValidateEnvelope(&Envelope{
+		V: ProtocolVersion, ID: "good", Type: "demo.authoritative",
+		Data: map[string]any{"fromDocument": "accepted"},
+	}); err != nil {
+		t.Fatalf("document-valid data was rejected by stale compiled schema: %v", err)
+	}
+	if err := registry.ValidateEnvelope(&Envelope{
+		V: ProtocolVersion, ID: "bad", Type: "demo.authoritative", Data: map[string]any{},
+	}); !errors.Is(err, ErrSchemaValidation) {
+		t.Fatalf("document-invalid data passed validation: %v", err)
+	}
+	if err := registry.ValidateResponse("demo.authoritative", &Response{
+		V: ProtocolVersion, EnvelopeID: "good", Kind: ResponseKindData,
+		Status: ResponseStatusSubmitted, Payload: "accepted",
+	}); err != nil {
+		t.Fatalf("document-valid payload was rejected by stale compiled schema: %v", err)
+	}
+	if err := registry.ValidateResponse("demo.authoritative", &Response{
+		V: ProtocolVersion, EnvelopeID: "bad", Kind: ResponseKindData,
+		Status: ResponseStatusSubmitted, Payload: float64(42),
+	}); !errors.Is(err, ErrSchemaValidation) {
+		t.Fatalf("document-invalid payload passed validation: %v", err)
+	}
+
+	catalog, err := registry.ExportCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(catalog.Schemas) != 1 || string(catalog.Schemas[0].Document) != string(dataDocument.JSON()) {
+		t.Fatalf("exported schema diverged from authoritative data document: %#v", catalog.Schemas)
+	}
+}
+
 // TestRegistry_concurrentAccess exercises the RWMutex by spinning concurrent
 // readers and writers. -race catches misuse.
 func TestRegistry_concurrentAccess(t *testing.T) {

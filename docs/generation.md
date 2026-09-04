@@ -49,14 +49,18 @@ Its stable top-level fields are:
 
 Arrays are sorted, maps use Go's deterministic JSON key ordering, and an
 unchanged registry produces byte-identical JSON when encoded with the same
-encoder settings. `ExportCatalog` returns an error if caller-supplied extension
-metadata is not JSON-representable; it never substitutes an empty digest for a
-failed export.
+encoder settings. Registration rejects caller-supplied extension metadata that
+is not JSON-representable. `ExportCatalog` never substitutes an empty digest for
+a failed snapshot encoding.
 
-`source.moduleVersion` is the version selected by the consuming build. It is
-`(devel)` only when the module itself is built from an unversioned source tree.
-Generated TypeScript includes this identity and `source.manifestDigest` in its
-header, so checked-in output identifies what generated it.
+`source.moduleVersion` identifies the code that actually supplied the catalog,
+not merely the version requested on the left side of a `replace` directive. An
+ordinary selected dependency reports its selected version. A local replacement
+reports `(devel; local replacement)` without exposing its filesystem path. A
+versioned replacement reports the replacement module path and version. A direct
+unversioned build reports `(devel)`. Generated TypeScript includes this identity
+and `source.manifestDigest` in its header, so checked-in output identifies what
+generated it.
 
 ## Go API
 
@@ -129,10 +133,13 @@ generated, err := codegen.TypeScript(catalog, codegen.TypeScriptOptions{})
 `RegisterTypeFromManifest` retains the source schema as a `SchemaDocument`,
 compiles it for validation, records typed import metadata, and includes it in
 the exported catalog. Advanced callers using `RegisterType` directly can set
-`TypeSpec.DataSchemaDocument`; the registry compiles it when `DataSchema` is
-nil. A direct registration that supplies only an already-compiled schema still
-validates for backward compatibility, but cannot export source bytes or
-annotations that were never provided.
+`TypeSpec.DataSchemaDocument`. A supplied document is authoritative and the
+registry always compiles it, replacing any simultaneously supplied compiled
+`DataSchema`; `PayloadSchemaDocument` follows the same rule. This prevents
+runtime validation from diverging from exported schema source. A direct
+registration that supplies only an already-compiled schema still validates for
+backward compatibility, but cannot export source bytes or annotations that were
+never provided.
 
 ## Schema metadata and validation details
 
@@ -152,4 +159,7 @@ instance path, schema path and URI, keyword, schema-owned expected value, a
 bounded actual-value summary, and the applicable schema metadata. Arbitrary
 string/object payload contents are not copied into `Actual`; only type/length,
 booleans, JSON numbers, and validation counts are retained. The legacy wrapped
-`*jsonschema.ValidationError` remains reachable through `errors.As`.
+`*jsonschema.ValidationError` remains reachable through `errors.As`, but that
+raw underlying error may contain rejected payload values and must be treated as
+sensitive. `ValidationError.Error()` and `Details()` are the bounded surfaces
+intended for ordinary logs and diagnostics.

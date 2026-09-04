@@ -119,6 +119,10 @@ if errors.As(err, &validationErr) {
 annotation keywords, without requiring consumers to reopen embedded files.
 Hosts decide how those facts are worded or presented to users.
 
+`ValidationError.Error()` and `Details()` are safe bounded diagnostic surfaces.
+The raw validator error remains available through `errors.As` for compatibility,
+but may contain rejected payload values and should not be logged.
+
 ## Layout
 
 - `manifest/` — canonical YAML manifest + per-type JSON Schemas (single source of truth, language-agnostic).

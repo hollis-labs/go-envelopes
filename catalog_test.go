@@ -3,7 +3,9 @@ package envelopes
 import (
 	"context"
 	"encoding/json"
+	"runtime/debug"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -70,6 +72,53 @@ func TestExportCatalog_isDeterministicAndSelfIdentifying(t *testing.T) {
 	}
 }
 
+func TestModuleIdentityFromBuildInfo(t *testing.T) {
+	tests := []struct {
+		name string
+		info *debug.BuildInfo
+		want moduleIdentity
+	}{
+		{
+			name: "ordinary selected dependency",
+			info: &debug.BuildInfo{Main: debug.Module{Path: "consumer.test"}, Deps: []*debug.Module{{
+				Path: ModulePath, Version: "v1.2.3",
+			}}},
+			want: moduleIdentity{Path: ModulePath, Version: "v1.2.3"},
+		},
+		{
+			name: "local replacement main command",
+			info: &debug.BuildInfo{Main: debug.Module{
+				Path: ModulePath, Version: "v1.2.3", Replace: &debug.Module{Path: "/private/source", Version: "(devel)"},
+			}},
+			want: moduleIdentity{Path: ModulePath, Version: "(devel; local replacement)"},
+		},
+		{
+			name: "local replacement",
+			info: &debug.BuildInfo{Main: debug.Module{Path: "consumer.test"}, Deps: []*debug.Module{{
+				Path: ModulePath, Version: "v1.2.3", Replace: &debug.Module{Path: "/private/source", Version: "(devel)"},
+			}}},
+			want: moduleIdentity{Path: ModulePath, Version: "(devel; local replacement)"},
+		},
+		{
+			name: "versioned replacement",
+			info: &debug.BuildInfo{Main: debug.Module{Path: "consumer.test"}, Deps: []*debug.Module{{
+				Path: ModulePath, Version: "v1.2.3", Replace: &debug.Module{Path: "example.com/envelopes-fork", Version: "v1.4.0"},
+			}}},
+			want: moduleIdentity{Path: "example.com/envelopes-fork", Version: "v1.4.0"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := moduleIdentityFromBuildInfo(test.info); got != test.want {
+				t.Fatalf("module identity = %#v, want %#v", got, test.want)
+			}
+			if strings.Contains(moduleIdentityFromBuildInfo(test.info).Path, "/private/source") {
+				t.Fatal("module identity leaked local replacement path")
+			}
+		})
+	}
+}
+
 func TestExportCatalog_includesUnregisteredCompatibilitySchemas(t *testing.T) {
 	registry, err := LoadCore(context.Background())
 	if err != nil {
@@ -133,23 +182,100 @@ ui:
 }
 
 func TestRegistryLookup_doesNotExposeMutableMetadata(t *testing.T) {
-	registry, err := LoadCore(context.Background())
+	typedSlice := []string{"original"}
+	typedMap := map[string]string{"key": "original"}
+	type nestedMetadata struct {
+		Label  string            `json:"label"`
+		Values map[string]string `json:"values"`
+	}
+	pointer := &nestedMetadata{Label: "original", Values: map[string]string{"key": "original"}}
+	registry := NewRegistry()
+	if err := registry.RegisterType(TypeSpec{
+		Name:     "demo.metadata",
+		PluginID: "demo",
+		UIMetadata: map[string]any{
+			"typedSlice": typedSlice,
+			"typedMap":   typedMap,
+			"pointer":    pointer,
+		},
+		TypeScript: TypeScriptMetadata{Import: ImportMetadata{Extra: map[string]any{
+			"typedSlice": typedSlice,
+			"typedMap":   typedMap,
+			"pointer":    pointer,
+		}}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Mutating every caller-owned composite after registration must not change
+	// registry storage or race with readers.
+	typedSlice[0] = "input-mutated"
+	typedMap["key"] = "input-mutated"
+	pointer.Label = "input-mutated"
+	pointer.Values["key"] = "input-mutated"
+
+	assertOriginal := func(t *testing.T, values map[string]any) {
+		t.Helper()
+		if got := values["typedSlice"].([]any)[0]; got != "original" {
+			t.Fatalf("typed slice = %v", got)
+		}
+		if got := values["typedMap"].(map[string]any)["key"]; got != "original" {
+			t.Fatalf("typed map = %v", got)
+		}
+		nested := values["pointer"].(map[string]any)
+		if nested["label"] != "original" || nested["values"].(map[string]any)["key"] != "original" {
+			t.Fatalf("pointer value = %#v", nested)
+		}
+	}
+
+	lookup, ok := registry.Lookup("demo.metadata")
+	if !ok {
+		t.Fatal("demo.metadata missing")
+	}
+	assertOriginal(t, lookup.UIMetadata)
+	assertOriginal(t, lookup.TypeScript.Import.Extra)
+	lookup.UIMetadata["typedSlice"].([]any)[0] = "lookup-mutated"
+	lookup.TypeScript.Import.Extra["typedMap"].(map[string]any)["key"] = "lookup-mutated"
+	all := registry.All()
+	assertOriginal(t, all[0].UIMetadata)
+	assertOriginal(t, all[0].TypeScript.Import.Extra)
+
+	firstCatalog, err := registry.ExportCatalog()
 	if err != nil {
 		t.Fatal(err)
 	}
-	spec, ok := registry.Lookup("info-card")
-	if !ok {
-		t.Fatal("info-card missing")
+	assertOriginal(t, firstCatalog.Types[0].TypeScript.Import.Extra)
+	firstCatalog.Types[0].TypeScript.Import.Extra["pointer"].(map[string]any)["label"] = "catalog-mutated"
+	secondCatalog, err := registry.ExportCatalog()
+	if err != nil {
+		t.Fatal(err)
 	}
-	spec.UIMetadata["component"] = "mutated"
-	spec.TypeScript.Import.Component = "also-mutated"
-	again, _ := registry.Lookup("info-card")
-	if again.UIMetadata["component"] == "mutated" || again.TypeScript.Import.Component == "also-mutated" {
-		t.Fatal("Lookup returned mutable registry metadata")
+	assertOriginal(t, secondCatalog.Types[0].TypeScript.Import.Extra)
+
+	// Each read owns its return value. Concurrent mutation of those snapshots is
+	// therefore race-free with other reads and exports.
+	var wait sync.WaitGroup
+	for range 16 {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			copy, _ := registry.Lookup("demo.metadata")
+			copy.UIMetadata["typedSlice"].([]any)[0] = "concurrent"
+			copy.TypeScript.Import.Extra["typedMap"].(map[string]any)["key"] = "concurrent"
+			all := registry.All()
+			all[0].UIMetadata["pointer"].(map[string]any)["label"] = "concurrent"
+			catalog, exportErr := registry.ExportCatalog()
+			if exportErr == nil {
+				catalog.Types[0].TypeScript.Import.Extra["typedSlice"].([]any)[0] = "concurrent"
+			}
+		}()
 	}
+	wait.Wait()
+	again, _ := registry.Lookup("demo.metadata")
+	assertOriginal(t, again.UIMetadata)
 }
 
-func TestExportCatalog_rejectsNonJSONExtensionMetadata(t *testing.T) {
+func TestRegisterType_rejectsNonJSONExtensionMetadata(t *testing.T) {
 	registry := NewRegistry()
 	err := registry.RegisterType(TypeSpec{
 		Name:     "demo.bad-metadata",
@@ -158,10 +284,7 @@ func TestExportCatalog_rejectsNonJSONExtensionMetadata(t *testing.T) {
 			"custom": func() {},
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := registry.ExportCatalog(); err == nil {
-		t.Fatal("ExportCatalog accepted non-JSON extension metadata")
+	if err == nil {
+		t.Fatal("RegisterType accepted non-JSON extension metadata")
 	}
 }

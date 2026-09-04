@@ -45,7 +45,9 @@ var (
 // ValidationError wraps a JSON Schema validation failure with the envelope
 // type name that triggered it. Errors.Is(err, ErrSchemaValidation) returns
 // true; errors.As(err, &ve) where ve is *jsonschema.ValidationError yields
-// the underlying validator detail.
+// the underlying validator detail. The wrapped validator error is intentionally
+// retained for compatibility but may contain raw payload values; do not log it.
+// Error and Details provide the bounded, logging-safe surfaces.
 type ValidationError struct {
 	Type     string
 	Inner    error
@@ -53,7 +55,10 @@ type ValidationError struct {
 }
 
 func (e *ValidationError) Error() string {
-	return fmt.Sprintf("envelopes: validate %q: %v", e.Type, e.Inner)
+	if e == nil {
+		return "envelopes: schema validation failed"
+	}
+	return fmt.Sprintf("envelopes: validate %q: schema validation failed (%d violation(s))", e.Type, len(e.Failures))
 }
 
 func (e *ValidationError) Unwrap() error { return e.Inner }
@@ -155,20 +160,46 @@ func validationFailureFromLeaf(validationError *jsonschema.ValidationError, docu
 
 func validationErrorMessage(validationError *jsonschema.ValidationError) string {
 	switch validationError.ErrorKind.(type) {
+	case *kind.Type:
+		return "value has the wrong type"
+	case *kind.Enum:
+		return "value is not one of the allowed values"
+	case *kind.Const:
+		return "value does not match the required constant"
 	case *kind.Pattern:
 		return "value does not match required pattern"
 	case *kind.Format:
 		return "value does not match required format"
+	case *kind.Required:
+		return "required properties are missing"
+	case *kind.Dependency, *kind.DependentRequired:
+		return "dependent properties are missing"
 	case *kind.AdditionalProperties:
 		return "additional properties are not allowed"
 	case *kind.PropertyNames:
 		return "property name is invalid"
+	case *kind.MinProperties:
+		return "object has too few properties"
+	case *kind.MaxProperties:
+		return "object has too many properties"
+	case *kind.MinItems:
+		return "array has too few items"
+	case *kind.MaxItems:
+		return "array has too many items"
+	case *kind.MinLength:
+		return "string is too short"
+	case *kind.MaxLength:
+		return "string is too long"
+	case *kind.Minimum, *kind.ExclusiveMinimum:
+		return "number is below the allowed minimum"
+	case *kind.Maximum, *kind.ExclusiveMaximum:
+		return "number is above the allowed maximum"
+	case *kind.MultipleOf:
+		return "number is not a required multiple"
+	case *kind.UniqueItems:
+		return "array items are not unique"
 	}
-	output := validationError.BasicOutput()
-	if output != nil && output.Error != nil {
-		return output.Error.String()
-	}
-	return validationError.Error()
+	return "value does not satisfy the schema"
 }
 
 func expectedActual(errorKind jsonschema.ErrorKind, metadata *SchemaMetadata) (any, *ValueSummary) {

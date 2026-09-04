@@ -38,6 +38,12 @@ adheres to [Semantic Versioning](https://semver.org/).
 - Unknown core-manifest entry keys are preserved as import metadata extras
   rather than dropped. The library preserves these hints but does not assign
   host-specific presentation semantics.
+- Catalog source identity now distinguishes ordinary selected modules, local
+  replacements, and versioned replacements without leaking local paths.
+  Registry metadata is normalized into independently owned JSON values, schema
+  documents are authoritative over simultaneously supplied compiled schemas,
+  nested boolean schemas/open objects generate their correct TypeScript shapes,
+  and `ValidationError.Error()` no longer includes the raw validator message.
 
 ### Migration
 - Replace scripts that open

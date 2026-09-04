@@ -167,9 +167,11 @@ func (s TypeSource) String() string {
 // populated only when ResponseKind == data and the type ships a schema.
 //
 // DataSchemaDocument and PayloadSchemaDocument retain module-owned source JSON
-// and parsed metadata alongside their compiled validators. TypeScript carries
-// typed generator/import metadata. UIMetadata remains as a compatibility view
-// of the same import hints for v0.3 consumers.
+// and parsed metadata alongside their compiled validators. When a document is
+// present RegisterType compiles it and replaces the corresponding compiled
+// schema, making the exportable source authoritative. TypeScript carries typed
+// generator/import metadata. UIMetadata remains as a compatibility view of the
+// same import hints for v0.3 consumers.
 type TypeSpec struct {
 	Name                  string
 	Version               string

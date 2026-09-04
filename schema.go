@@ -318,6 +318,40 @@ func cloneJSONValue(value any) any {
 	}
 }
 
+// normalizeJSONValue converts any value accepted by encoding/json into the
+// package's canonical JSON-shaped representation. In particular, typed maps,
+// typed slices, structs, arrays, and pointers become independently owned
+// map[string]any / []any / scalar values. Registry storage uses this at the
+// ownership boundary so later caller mutation cannot race with reads.
+func normalizeJSONValue(value any) (any, error) {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	var normalized any
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(&normalized); err != nil {
+		return nil, err
+	}
+	return normalized, nil
+}
+
+func normalizeStringAnyMap(values map[string]any) (map[string]any, error) {
+	if values == nil {
+		return nil, nil
+	}
+	normalized, err := normalizeJSONValue(values)
+	if err != nil {
+		return nil, err
+	}
+	result, ok := normalized.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("normalized metadata is not an object")
+	}
+	return result, nil
+}
+
 func parseJSONPointer(pointer string) ([]string, error) {
 	if pointer == "" {
 		return nil, nil

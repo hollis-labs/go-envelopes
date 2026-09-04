@@ -132,7 +132,9 @@ semantics. Validation failures for plugin types are returned as the same
 `ValidationError.Details()` records used by core types.
 
 Advanced callers using `RegisterType` directly may provide a
-`DataSchemaDocument` created by `NewSchemaDocument`. When `DataSchema` is nil,
-`RegisterType` compiles that document. Supplying only an already-compiled
-`DataSchema` remains supported, but its unavailable source JSON and annotations
-cannot appear in exported artifacts.
+`DataSchemaDocument` created by `NewSchemaDocument`. The document is
+authoritative: `RegisterType` always compiles it and replaces any simultaneously
+supplied `DataSchema`. `PayloadSchemaDocument` applies the same rule to response
+payload validation. Supplying only an already-compiled `DataSchema` remains
+supported, but its unavailable source JSON and annotations cannot appear in
+exported artifacts.
