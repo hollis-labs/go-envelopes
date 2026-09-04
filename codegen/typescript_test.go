@@ -227,3 +227,100 @@ void invalid;
 		t.Fatalf("generated TypeScript semantic check: %v\n%s", err, output)
 	}
 }
+
+func TestTypeScript_notTrueIsNeverAcrossNestedPositions(t *testing.T) {
+	registry := envelopes.NewRegistry()
+	if err := registry.RegisterTypeFromManifest(
+		[]byte("type: demo.not-root\n"),
+		[]byte(`{"not":true}`),
+		"demo",
+	); err != nil {
+		t.Fatal(err)
+	}
+	nestedSchema := []byte(`{
+  "type": "object",
+  "$defs": {
+    "impossible": {"not": true}
+  },
+  "properties": {
+    "direct": {"not": true},
+    "withSiblings": {"not": true, "type": "object", "properties": {"ignored": {"type": "string"}}},
+    "list": {"type": "array", "items": {"not": true}},
+    "referenced": {"$ref": "#/$defs/impossible"},
+    "allowed": {"not": false}
+  },
+  "additionalProperties": false
+}`)
+	if err := registry.RegisterTypeFromManifest(
+		[]byte("type: demo.not-nested\n"),
+		nestedSchema,
+		"demo",
+	); err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := registry.ExportCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, err := codegen.TypeScript(catalog, codegen.TypeScriptOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated := string(output)
+	for _, required := range []string{
+		"export type DemoNotRootData = never;",
+		"export type DemoNotNestedImpossible = never;",
+		"direct?: never;",
+		"withSiblings?: never;",
+		"list?: never[];",
+		"referenced?: DemoNotNestedImpossible;",
+		"allowed?: unknown;",
+	} {
+		if !strings.Contains(generated, required) {
+			t.Fatalf("not applicator output missing %q:\n%s", required, generated)
+		}
+	}
+
+	tsc, err := exec.LookPath("tsc")
+	if err != nil {
+		t.Skip("tsc is not installed; string-level contract assertions passed")
+	}
+	directory := t.TempDir()
+	if err := os.WriteFile(filepath.Join(directory, "generated.ts"), output, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	usage := `import type { DemoNotNestedData, DemoNotRootData } from "./generated";
+
+const valid: DemoNotNestedData = { allowed: { anything: true }, list: [] };
+
+// @ts-expect-error A not:true property rejects every supplied value.
+const invalidNested: DemoNotNestedData = { direct: "must-not-compile" };
+
+// @ts-expect-error not:true remains impossible when sibling keywords exist.
+const invalidWithSiblings: DemoNotNestedData = { withSiblings: {} };
+
+// @ts-expect-error Arrays whose item schema is not:true cannot contain values.
+const invalidList: DemoNotNestedData = { list: ["must-not-compile"] };
+
+// @ts-expect-error A $ref to a not:true $defs entry rejects every value.
+const invalidReference: DemoNotNestedData = { referenced: "must-not-compile" };
+
+// @ts-expect-error A root not:true schema rejects every value.
+const invalidRoot: DemoNotRootData = {};
+
+void valid;
+void invalidNested;
+void invalidWithSiblings;
+void invalidList;
+void invalidReference;
+void invalidRoot;
+`
+	if err := os.WriteFile(filepath.Join(directory, "usage.ts"), []byte(usage), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command(tsc, "--noEmit", "--strict", "--skipLibCheck", "--target", "ES2022", "usage.ts")
+	command.Dir = directory
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("not applicator TypeScript semantic check: %v\n%s", err, output)
+	}
+}

@@ -114,6 +114,10 @@ func LoadCore(ctx context.Context, opts ...LoadOption) (*Registry, error) {
 		default:
 			return nil, fmt.Errorf("core type %q: %w", entry.Type, err)
 		}
+		spec, err = normalizeTypeSpecMetadata(spec)
+		if err != nil {
+			return nil, err
+		}
 		if err := r.registerLocked(spec); err != nil {
 			return nil, fmt.Errorf("register core type %q: %w", entry.Type, err)
 		}
@@ -204,10 +208,9 @@ func (r *Registry) Len() int {
 	return len(r.types)
 }
 
-// registerLocked inserts a spec into the map. Caller must hold r.mu (write).
-// Conflict and naming rules are enforced by RegisterType (the public entry
-// point); LoadCore calls this directly because core type names skip the
-// plugin namespace check.
+// registerLocked inserts an already-normalized spec into the map. RegisterType
+// holds r.mu for this call. LoadCore calls it while it has exclusive ownership
+// of a registry that has not yet been published.
 func (r *Registry) registerLocked(spec TypeSpec) error {
 	if spec.Name == "" {
 		return fmt.Errorf("%w: name is empty", ErrInvalidName)
@@ -218,18 +221,25 @@ func (r *Registry) registerLocked(spec TypeSpec) error {
 	if spec.TypeScript.DataType == "" {
 		spec.TypeScript.DataType = TypeScriptDataTypeName(spec.Name)
 	}
-	var err error
-	spec.UIMetadata, err = normalizeStringAnyMap(spec.UIMetadata)
-	if err != nil {
-		return fmt.Errorf("envelopes: normalize UI metadata for %q: %w", spec.Name, err)
-	}
-	spec.TypeScript.Import.Extra, err = normalizeStringAnyMap(spec.TypeScript.Import.Extra)
-	if err != nil {
-		return fmt.Errorf("envelopes: normalize TypeScript import metadata for %q: %w", spec.Name, err)
-	}
 	r.types[spec.Name] = spec
 	r.recordSchemaResourceLocked(spec)
 	return nil
+}
+
+// normalizeTypeSpecMetadata establishes the registry's ownership boundary.
+// It may invoke caller-defined MarshalJSON methods and therefore must run
+// before the registry lock is acquired.
+func normalizeTypeSpecMetadata(spec TypeSpec) (TypeSpec, error) {
+	var err error
+	spec.UIMetadata, err = normalizeStringAnyMap(spec.UIMetadata)
+	if err != nil {
+		return TypeSpec{}, fmt.Errorf("envelopes: normalize UI metadata for %q: %w", spec.Name, err)
+	}
+	spec.TypeScript.Import.Extra, err = normalizeStringAnyMap(spec.TypeScript.Import.Extra)
+	if err != nil {
+		return TypeSpec{}, fmt.Errorf("envelopes: normalize TypeScript import metadata for %q: %w", spec.Name, err)
+	}
+	return spec, nil
 }
 
 func (r *Registry) recordSchemaResourceLocked(spec TypeSpec) {

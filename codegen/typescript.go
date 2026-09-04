@@ -253,6 +253,11 @@ func (g *schemaGenerator) typeFor(schema any) string {
 }
 
 func (g *schemaGenerator) typeForObject(schema map[string]any) string {
+	if negated, ok := schema["not"].(bool); ok && negated {
+		// not:true is equivalent to the false schema and rejects every value.
+		// not:false adds no constraint, so the remaining keywords still apply.
+		return "never"
+	}
 	if ref, _ := schema["$ref"].(string); ref != "" {
 		if name, ok := g.refs[ref]; ok {
 			return name
@@ -443,7 +448,7 @@ func canEmitInterface(schema any) bool {
 			return false
 		}
 	}
-	for _, keyword := range []string{"$ref", "const", "enum", "oneOf", "anyOf", "allOf"} {
+	for _, keyword := range []string{"$ref", "const", "enum", "oneOf", "anyOf", "allOf", "not"} {
 		if _, present := object[keyword]; present {
 			return false
 		}

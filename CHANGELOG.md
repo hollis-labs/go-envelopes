@@ -42,8 +42,10 @@ adheres to [Semantic Versioning](https://semver.org/).
   replacements, and versioned replacements without leaking local paths.
   Registry metadata is normalized into independently owned JSON values, schema
   documents are authoritative over simultaneously supplied compiled schemas,
-  nested boolean schemas/open objects generate their correct TypeScript shapes,
-  and `ValidationError.Error()` no longer includes the raw validator message.
+  boolean schemas in generated properties/items/combinators/`$defs` and
+  `not: true` generate their correct TypeScript shapes, open objects remain
+  open, and `ValidationError.Error()` no longer includes the raw validator
+  message.
 
 ### Migration
 - Replace scripts that open
@@ -59,6 +61,11 @@ adheres to [Semantic Versioning](https://semver.org/).
   their schemas and import metadata now appear in `ExportCatalog` and
   `codegen.TypeScript`. Direct `RegisterType` callers should provide a
   `DataSchemaDocument` when build-time schema export is required.
+- Direct `RegisterType` callers should account for metadata normalization:
+  object, array, and numeric values returned by registry snapshots use
+  `map[string]any`, `[]any`, and `json.Number`; structs and pointers become
+  their decoded JSON value. Invalid JSON metadata now fails during
+  `RegisterType`, before insertion, instead of surfacing during catalog export.
 
 ## [0.3.0] - 2026-08-24
 

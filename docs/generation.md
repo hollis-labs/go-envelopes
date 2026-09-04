@@ -50,8 +50,12 @@ Its stable top-level fields are:
 Arrays are sorted, maps use Go's deterministic JSON key ordering, and an
 unchanged registry produces byte-identical JSON when encoded with the same
 encoder settings. Registration rejects caller-supplied extension metadata that
-is not JSON-representable. `ExportCatalog` never substitutes an empty digest for
-a failed snapshot encoding.
+is not JSON-representable. That validation occurs during `RegisterType`, before
+the type is inserted, rather than later during `ExportCatalog`. Registered
+objects/arrays/numbers are exposed as `map[string]any`, `[]any`, and
+`json.Number`; structs and pointers become their corresponding decoded JSON
+value. `ExportCatalog` never substitutes an empty digest for a failed snapshot
+encoding.
 
 `source.moduleVersion` identifies the code that actually supplied the catalog,
 not merely the version requested on the left side of a `replace` directive. An
@@ -87,6 +91,11 @@ The TypeScript generator emits:
 - `EnvelopeType` and `EnvelopeDataMap`;
 - `ENVELOPE_IMPORT_METADATA` with component path, named export, props hint,
   source, and plugin id.
+
+Boolean schemas are honored at the root and in recursively generated
+properties, items, combinators, and `$defs`. The `not: true` applicator is
+recognized as an always-failing schema and emits `never`; `not: false` adds no
+constraint.
 
 It does not emit framework imports or component-loader code. A React host can
 turn the metadata into `lazy()` imports; another host can use an entirely

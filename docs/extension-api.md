@@ -100,10 +100,26 @@ for _, spec := range registry.All() {
 }
 ```
 
-`TypeSpec.UIMetadata` carries TS-side rendering hints unchanged; Go
+`TypeSpec.UIMetadata` carries the same TS-side rendering hints semantically; Go
 hosts can ignore it or surface it through their own UI tools. New code should
 prefer the typed `TypeSpec.TypeScript.Import`; `UIMetadata` remains available
 for v0.3 source compatibility.
+
+`RegisterType` establishes an ownership boundary by encoding `UIMetadata` and
+`TypeScript.Import.Extra` as JSON and decoding them into canonical Go shapes:
+objects become `map[string]any`, arrays become `[]any`, numbers become
+`json.Number`, and structs or pointers become their corresponding decoded JSON
+value. Consequently, a caller that registers `[]string`, `map[string]string`,
+or a struct pointer must not expect that same concrete Go type from `Lookup` or
+`All`; type-assert against the canonical shape instead. Every returned snapshot
+is independently owned.
+
+Non-JSON values and failing `MarshalJSON` implementations now cause
+`RegisterType` itself to return an error; failure is not deferred until
+`ExportCatalog`. Normalization, including any caller-defined `MarshalJSON`
+method, completes before the registry write lock is acquired. The type becomes
+visible atomically only after normalization succeeds, and a marshaler may safely
+query the registry while it runs.
 
 ## Build-time export and schema annotations
 

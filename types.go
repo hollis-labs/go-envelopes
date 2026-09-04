@@ -185,9 +185,10 @@ type TypeSpec struct {
 	PluginID              string
 	TypeScript            TypeScriptMetadata
 
-	// UIMetadata is retained for source compatibility with v0.3 consumers.
-	// New generators should use TypeScript.Import, whose typed fields avoid
-	// repeating string-key lookups at every consumer.
+	// UIMetadata is retained for source compatibility with v0.3 consumers, but
+	// RegisterType normalizes its values to canonical JSON Go shapes. New
+	// generators should use TypeScript.Import, whose typed fields avoid repeating
+	// string-key lookups at every consumer.
 	UIMetadata map[string]any
 }
 

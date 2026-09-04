@@ -1,10 +1,26 @@
 package envelopes
 
 import (
+	"encoding/json"
 	"errors"
 	"sync"
 	"testing"
+	"time"
 )
+
+type reentrantJSONMetadata struct {
+	registry         *Registry
+	observedInserted chan<- bool
+}
+
+func (metadata reentrantJSONMetadata) MarshalJSON() ([]byte, error) {
+	_, inserted := metadata.registry.Lookup("demo.reentrant")
+	metadata.observedInserted <- inserted
+	if _, err := metadata.registry.ExportCatalog(); err != nil {
+		return nil, err
+	}
+	return []byte(`{"nested":["ok"],"number":7}`), nil
+}
 
 func TestRegisterType_validNamespacedName(t *testing.T) {
 	r := mustLoad(t)
@@ -309,6 +325,49 @@ func TestRegisterType_schemaDocumentsAreAuthoritative(t *testing.T) {
 	}
 	if len(catalog.Schemas) != 1 || string(catalog.Schemas[0].Document) != string(dataDocument.JSON()) {
 		t.Fatalf("exported schema diverged from authoritative data document: %#v", catalog.Schemas)
+	}
+}
+
+func TestRegisterType_metadataMarshalJSONCanReenterRegistry(t *testing.T) {
+	registry := NewRegistry()
+	observedInserted := make(chan bool, 1)
+	result := make(chan error, 1)
+	go func() {
+		result <- registry.RegisterType(TypeSpec{
+			Name:     "demo.reentrant",
+			PluginID: "demo",
+			TypeScript: TypeScriptMetadata{Import: ImportMetadata{
+				Component: "components/Reentrant",
+			}},
+			UIMetadata: map[string]any{
+				"reentrant": reentrantJSONMetadata{
+					registry:         registry,
+					observedInserted: observedInserted,
+				},
+			},
+		})
+	}()
+
+	select {
+	case err := <-result:
+		if err != nil {
+			t.Fatalf("RegisterType: %v", err)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("RegisterType deadlocked while MarshalJSON re-entered the registry")
+	}
+	if inserted := <-observedInserted; inserted {
+		t.Fatal("registration became visible before metadata normalization completed")
+	}
+
+	spec, ok := registry.Lookup("demo.reentrant")
+	if !ok {
+		t.Fatal("registration was not inserted atomically after normalization")
+	}
+	metadata, ok := spec.UIMetadata["reentrant"].(map[string]any)
+	number, numberOK := metadata["number"].(json.Number)
+	if !ok || !numberOK || number.String() != "7" {
+		t.Fatalf("reentrant metadata was not normalized: %#v", spec.UIMetadata)
 	}
 }
 

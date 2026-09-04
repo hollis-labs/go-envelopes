@@ -38,6 +38,9 @@ var pluginTypeName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*(?:\.[a-z0-9][a-z0-9
 //     RegisterType compiles it and replaces the corresponding compiled schema,
 //     preventing validation and exported source from describing different
 //     contracts.
+//   - UIMetadata and TypeScript.Import.Extra must be JSON-representable. They
+//     are normalized before the registry write lock is acquired and before the
+//     type becomes visible to readers.
 //   - The first registration wins. A second call for the same name
 //     returns ErrConflict; the library does not silently overwrite.
 //
@@ -81,6 +84,14 @@ func (r *Registry) RegisterType(spec TypeSpec) error {
 	}
 	if spec.UIMetadata == nil {
 		spec.UIMetadata = legacyUIMetadata(spec.TypeScript.Import)
+	}
+	if r.Has(spec.Name) {
+		return fmt.Errorf("%w: %q", ErrConflict, spec.Name)
+	}
+	var err error
+	spec, err = normalizeTypeSpecMetadata(spec)
+	if err != nil {
+		return err
 	}
 
 	r.mu.Lock()

@@ -287,4 +287,7 @@ func TestRegisterType_rejectsNonJSONExtensionMetadata(t *testing.T) {
 	if err == nil {
 		t.Fatal("RegisterType accepted non-JSON extension metadata")
 	}
+	if registry.Has("demo.bad-metadata") {
+		t.Fatal("failed metadata normalization inserted a partial registration")
+	}
 }
