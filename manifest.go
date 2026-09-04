@@ -2,7 +2,6 @@ package envelopes
 
 import (
 	"embed"
-	"encoding/json"
 	"fmt"
 	"io/fs"
 	"path"
@@ -30,11 +29,34 @@ func EmbeddedFS() fs.FS { return embeddedManifest }
 // Extra so downstream tooling can read non-Go metadata without changes
 // here when the manifest grows.
 type ManifestEntry struct {
-	Type        string `yaml:"type"`
-	Component   string `yaml:"component,omitempty"`
-	Export      string `yaml:"export,omitempty"`
-	Description string `yaml:"description,omitempty"`
-	Props       string `yaml:"props,omitempty"`
+	Type        string         `yaml:"type"`
+	Component   string         `yaml:"component,omitempty"`
+	Export      string         `yaml:"export,omitempty"`
+	Description string         `yaml:"description,omitempty"`
+	Props       string         `yaml:"props,omitempty"`
+	Extra       map[string]any `yaml:"-"`
+}
+
+// UnmarshalYAML preserves unknown entry keys in Extra so build-time metadata
+// can flow through the catalog without a library release for every new hint.
+func (e *ManifestEntry) UnmarshalYAML(value *yaml.Node) error {
+	type manifestEntry ManifestEntry
+	var known manifestEntry
+	if err := value.Decode(&known); err != nil {
+		return err
+	}
+	*e = ManifestEntry(known)
+	var all map[string]any
+	if err := value.Decode(&all); err != nil {
+		return err
+	}
+	for _, key := range []string{"type", "component", "export", "description", "props"} {
+		delete(all, key)
+	}
+	if len(all) > 0 {
+		e.Extra = all
+	}
+	return nil
 }
 
 // Manifest is the parsed top-level YAML manifest.
@@ -58,7 +80,10 @@ func ParseManifest(data []byte) (*Manifest, error) {
 // the registry can store on its TypeSpec. Empty when the entry has no
 // rendering metadata.
 func uiMetadataForEntry(e ManifestEntry) map[string]any {
-	out := map[string]any{}
+	out := cloneStringAnyMap(e.Extra)
+	if out == nil {
+		out = map[string]any{}
+	}
 	if e.Component != "" {
 		out["component"] = e.Component
 	}
@@ -74,26 +99,46 @@ func uiMetadataForEntry(e ManifestEntry) map[string]any {
 	return out
 }
 
+func importMetadataForEntry(e ManifestEntry) ImportMetadata {
+	return ImportMetadata{
+		Component: e.Component,
+		Export:    e.Export,
+		Props:     e.Props,
+		Extra:     cloneStringAnyMap(e.Extra),
+	}
+}
+
 // compileSchemaFromFS reads, parses, and compiles a JSON Schema from the
 // given filesystem at the given path. Returns nil, fs.ErrNotExist if the
 // schema file is absent — the caller distinguishes "no schema" from a real
 // parse/compile failure.
-func compileSchemaFromFS(f fs.FS, schemaPath, resourceURI string) (*jsonschema.Schema, error) {
+func compileSchemaFromFS(f fs.FS, schemaPath, resourceURI string) (*jsonschema.Schema, *SchemaDocument, error) {
 	raw, err := fs.ReadFile(f, schemaPath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	var doc any
-	if err := json.Unmarshal(raw, &doc); err != nil {
-		return nil, fmt.Errorf("parse schema %s: %w", schemaPath, err)
+	document, err := NewSchemaDocument(resourceURI, raw)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse schema %s: %w", schemaPath, err)
+	}
+	compiled, err := compileSchemaDocument(document)
+	if err != nil {
+		return nil, nil, fmt.Errorf("compile schema %s: %w", schemaPath, err)
+	}
+	return compiled, document, nil
+}
+
+func compileSchemaDocument(document *SchemaDocument) (*jsonschema.Schema, error) {
+	if document == nil {
+		return nil, fmt.Errorf("envelopes: schema document is nil")
 	}
 	c := jsonschema.NewCompiler()
-	if err := c.AddResource(resourceURI, doc); err != nil {
-		return nil, fmt.Errorf("register schema %s: %w", schemaPath, err)
+	if err := c.AddResource(document.URI(), document.document); err != nil {
+		return nil, fmt.Errorf("register schema %s: %w", document.URI(), err)
 	}
-	compiled, err := c.Compile(resourceURI)
+	compiled, err := c.Compile(document.URI())
 	if err != nil {
-		return nil, fmt.Errorf("compile schema %s: %w", schemaPath, err)
+		return nil, err
 	}
 	return compiled, nil
 }

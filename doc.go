@@ -2,7 +2,10 @@
 // Protocol. It defines the canonical Envelope and Response wire types,
 // loads the core type catalog from the embedded YAML manifest, validates
 // payloads against per-type JSON Schemas, and exposes a plugin extension
-// API for runtime registration of additional envelope types.
+// API for runtime registration of additional envelope types. ExportCatalog
+// provides the same manifest, raw schemas, annotations, source identity, and
+// TypeScript/import metadata to build-time consumers without filesystem-layout
+// assumptions. Package codegen turns that catalog into host-neutral TypeScript.
 //
 // The package is transport-agnostic. It does not bind to MCP, SSE, or any
 // other transport — those concerns live in consumer apps. It also does not

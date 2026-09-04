@@ -216,6 +216,34 @@ func TestRegisterTypeFromManifest_jsonFallback(t *testing.T) {
 	}
 }
 
+func TestRegisterType_compilesProvidedSchemaDocument(t *testing.T) {
+	r := NewRegistry()
+	document, err := NewSchemaDocument("plugin://demo/direct.schema.json", []byte(`{
+  "type": "object",
+  "required": ["name"],
+  "properties": {"name": {"type": "string"}}
+}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := r.RegisterType(TypeSpec{
+		Name:               "demo.direct",
+		PluginID:           "demo",
+		DataSchemaDocument: document,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	spec, _ := r.Lookup("demo.direct")
+	if spec.DataSchema == nil {
+		t.Fatal("RegisterType did not compile DataSchemaDocument")
+	}
+	err = r.ValidateEnvelope(&Envelope{V: ProtocolVersion, ID: "bad", Type: "demo.direct", Data: map[string]any{}})
+	var validationError *ValidationError
+	if !errors.As(err, &validationError) || len(validationError.Details()) != 1 {
+		t.Fatalf("direct schema document validation = %v", err)
+	}
+}
+
 // TestRegistry_concurrentAccess exercises the RWMutex by spinning concurrent
 // readers and writers. -race catches misuse.
 func TestRegistry_concurrentAccess(t *testing.T) {

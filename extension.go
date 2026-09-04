@@ -55,14 +55,26 @@ func (r *Registry) RegisterType(spec TypeSpec) error {
 	if !spec.ResponseKind.IsValid() {
 		return fmt.Errorf("%w: %q", ErrUnsupportedKind, spec.ResponseKind)
 	}
+	if spec.DataSchema == nil && spec.DataSchemaDocument != nil {
+		compiled, err := compileSchemaDocument(spec.DataSchemaDocument)
+		if err != nil {
+			return fmt.Errorf("envelopes: compile schema for %q: %w", spec.Name, err)
+		}
+		spec.DataSchema = compiled
+	}
+	if spec.TypeScript.DataType == "" {
+		spec.TypeScript.DataType = TypeScriptDataTypeName(spec.Name)
+	}
+	if spec.TypeScript.Import.Component == "" && len(spec.UIMetadata) > 0 {
+		spec.TypeScript.Import = importMetadataFromMap(spec.UIMetadata)
+	}
+	if spec.UIMetadata == nil {
+		spec.UIMetadata = legacyUIMetadata(spec.TypeScript.Import)
+	}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, exists := r.types[spec.Name]; exists {
-		return fmt.Errorf("%w: %q", ErrConflict, spec.Name)
-	}
-	r.types[spec.Name] = spec
-	return nil
+	return r.registerLocked(spec)
 }
 
 // UnregisterType removes a plugin-owned type from the registry. Returns
@@ -82,6 +94,7 @@ func (r *Registry) UnregisterType(name string) error {
 		return fmt.Errorf("%w: %q", ErrCoreTypeProtected, name)
 	}
 	delete(r.types, name)
+	delete(r.schemaResources, name)
 	return nil
 }
 
@@ -101,6 +114,7 @@ func (r *Registry) UnregisterPlugin(pluginID string) int {
 			continue
 		}
 		delete(r.types, name)
+		delete(r.schemaResources, name)
 		n++
 	}
 	return n
@@ -158,18 +172,23 @@ func (r *Registry) RegisterTypeFromManifest(manifestBytes, schemaBytes []byte, p
 		Description:  entry.Description,
 		Source:       TypeSourcePlugin,
 		PluginID:     pluginID,
-		UIMetadata:   entry.UIMetadata,
+		TypeScript: TypeScriptMetadata{
+			DataType: TypeScriptDataTypeName(name),
+			Import:   importMetadataFromMap(entry.UIMetadata),
+		},
+		UIMetadata: entry.UIMetadata,
 	}
 	if entry.ResponseKind != "" {
 		spec.ResponseKind = ResponseKind(entry.ResponseKind)
 	}
 
 	if len(schemaBytes) > 0 {
-		schema, err := compilePluginSchema(pluginID, name, schemaBytes)
+		schema, document, err := compilePluginSchema(pluginID, name, schemaBytes)
 		if err != nil {
 			return err
 		}
 		spec.DataSchema = schema
+		spec.DataSchemaDocument = document
 	}
 	return r.RegisterType(spec)
 }
@@ -188,19 +207,61 @@ func decodeManifestEntry(data []byte, out *PluginManifestEntry) error {
 
 // compilePluginSchema compiles a plugin-supplied JSON Schema with a
 // stable in-memory URI so error messages don't leak filesystem layout.
-func compilePluginSchema(pluginID, typeName string, schemaBytes []byte) (*jsonschema.Schema, error) {
-	var doc any
-	if err := json.Unmarshal(schemaBytes, &doc); err != nil {
-		return nil, fmt.Errorf("envelopes: parse schema for %q: %w", typeName, err)
-	}
+func compilePluginSchema(pluginID, typeName string, schemaBytes []byte) (*jsonschema.Schema, *SchemaDocument, error) {
 	uri := fmt.Sprintf("plugin://%s/envelopes/%s.schema.json", pluginID, typeName)
-	c := jsonschema.NewCompiler()
-	if err := c.AddResource(uri, doc); err != nil {
-		return nil, fmt.Errorf("envelopes: register schema for %q: %w", typeName, err)
-	}
-	compiled, err := c.Compile(uri)
+	document, err := NewSchemaDocument(uri, schemaBytes)
 	if err != nil {
-		return nil, fmt.Errorf("envelopes: compile schema for %q: %w", typeName, err)
+		return nil, nil, fmt.Errorf("envelopes: parse schema for %q: %w", typeName, err)
 	}
-	return compiled, nil
+	compiled, err := compileSchemaDocument(document)
+	if err != nil {
+		return nil, nil, fmt.Errorf("envelopes: compile schema for %q: %w", typeName, err)
+	}
+	return compiled, document, nil
+}
+
+func importMetadataFromMap(metadata map[string]any) ImportMetadata {
+	if metadata == nil {
+		return ImportMetadata{}
+	}
+	result := ImportMetadata{Extra: make(map[string]any)}
+	for key, value := range metadata {
+		switch key {
+		case "component":
+			result.Component, _ = value.(string)
+		case "export":
+			result.Export, _ = value.(string)
+		case "props":
+			result.Props, _ = value.(string)
+		default:
+			result.Extra[key] = cloneJSONValue(value)
+		}
+	}
+	if len(result.Extra) == 0 {
+		result.Extra = nil
+	}
+	return result
+}
+
+func legacyUIMetadata(metadata ImportMetadata) map[string]any {
+	result := cloneStringAnyMap(metadata.Extra)
+	if metadata.Component != "" {
+		if result == nil {
+			result = make(map[string]any)
+		}
+		result["component"] = metadata.Component
+	}
+	if metadata.Export != "" {
+		if result == nil {
+			result = make(map[string]any)
+		}
+		result["export"] = metadata.Export
+	}
+	if metadata.Props != "" {
+		if result == nil {
+			result = make(map[string]any)
+		}
+		result["props"] = metadata.Props
+	}
+	return result
 }

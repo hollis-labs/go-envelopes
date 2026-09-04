@@ -39,7 +39,7 @@ func (r *Registry) ValidateEnvelope(env *Envelope) error {
 	// jsonschema/v6 expects an interface-shaped value (map[string]any /
 	// []any), which a JSON-decoded map already satisfies. Pass Data as-is.
 	if err := spec.DataSchema.Validate(any(env.Data)); err != nil {
-		return &ValidationError{Type: env.Type, Inner: err}
+		return newValidationError(env.Type, err, spec.DataSchemaDocument)
 	}
 	return nil
 }
@@ -90,7 +90,7 @@ func (r *Registry) ValidateResponse(envelopeType string, resp *Response) error {
 	case ResponseKindData:
 		if spec.PayloadSchema != nil {
 			if err := spec.PayloadSchema.Validate(any(resp.Payload)); err != nil {
-				return &ValidationError{Type: envelopeType, Inner: err}
+				return newValidationError(envelopeType, err, spec.PayloadSchemaDocument)
 			}
 		}
 	case ResponseKindError:

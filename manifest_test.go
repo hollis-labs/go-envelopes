@@ -47,3 +47,17 @@ func TestParseManifest_rejectsBadYAML(t *testing.T) {
 		t.Errorf("error should mention parse manifest, got %q", err)
 	}
 }
+
+func TestParseManifest_preservesUnknownGeneratorMetadata(t *testing.T) {
+	manifest, err := ParseManifest([]byte("core:\n  - type: demo-card\n    x-loader: eager\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := manifest.Core[0].Extra["x-loader"]; got != "eager" {
+		t.Fatalf("unknown metadata = %v, want eager", got)
+	}
+	metadata := importMetadataForEntry(manifest.Core[0])
+	if got := metadata.Extra["x-loader"]; got != "eager" {
+		t.Fatalf("import metadata extra = %v, want eager", got)
+	}
+}

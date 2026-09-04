@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"path"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -18,22 +20,27 @@ import (
 // holds compiled *jsonschema.Schema values; compilation cost is paid at
 // load/registration time so validation is cheap.
 type Registry struct {
-	mu    sync.RWMutex
-	types map[string]TypeSpec
+	mu              sync.RWMutex
+	types           map[string]TypeSpec
+	manifestYAML    []byte
+	manifestSchema  []byte
+	schemaResources map[string]SchemaResource
 }
 
 // NewRegistry returns an empty registry. Most consumers want LoadCore,
 // which constructs an empty registry and seeds it with core types.
 func NewRegistry() *Registry {
-	return &Registry{types: make(map[string]TypeSpec)}
+	return &Registry{
+		types:           make(map[string]TypeSpec),
+		schemaResources: make(map[string]SchemaResource),
+	}
 }
 
 // LoadOption configures LoadCore.
 type LoadOption func(*loadConfig)
 
 type loadConfig struct {
-	manifestFS  fs.FS
-	manifestRel string
+	manifestFS fs.FS
 }
 
 // WithManifestFS overrides the embedded manifest filesystem with a
@@ -71,6 +78,15 @@ func LoadCore(ctx context.Context, opts ...LoadOption) (*Registry, error) {
 	}
 
 	r := NewRegistry()
+	r.manifestYAML = append([]byte(nil), manifestBytes...)
+	if schema, readErr := fs.ReadFile(cfg.manifestFS, "manifest/envelopes.schema.json"); readErr == nil {
+		r.manifestSchema = append([]byte(nil), schema...)
+	} else if !errors.Is(readErr, fs.ErrNotExist) {
+		return nil, fmt.Errorf("read manifest schema: %w", readErr)
+	}
+	if err := r.loadSchemaResources(cfg.manifestFS); err != nil {
+		return nil, err
+	}
 	for _, entry := range manifest.Core {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -81,13 +97,18 @@ func LoadCore(ctx context.Context, opts ...LoadOption) (*Registry, error) {
 			ResponseKind: ResponseKindData,
 			Description:  entry.Description,
 			Source:       TypeSourceCore,
-			UIMetadata:   uiMetadataForEntry(entry),
+			TypeScript: TypeScriptMetadata{
+				DataType: TypeScriptDataTypeName(entry.Type),
+				Import:   importMetadataForEntry(entry),
+			},
+			UIMetadata: uiMetadataForEntry(entry),
 		}
 		schemaPath := schemaPathForType(entry.Type)
-		compiled, err := compileSchemaFromFS(cfg.manifestFS, schemaPath, "embedded://"+schemaPath)
+		compiled, document, err := compileSchemaFromFS(cfg.manifestFS, schemaPath, "embedded://"+schemaPath)
 		switch {
 		case err == nil:
 			spec.DataSchema = compiled
+			spec.DataSchemaDocument = document
 		case errors.Is(err, fs.ErrNotExist):
 			// No per-type schema shipped — register without one.
 		default:
@@ -100,6 +121,38 @@ func LoadCore(ctx context.Context, opts ...LoadOption) (*Registry, error) {
 	return r, nil
 }
 
+func (r *Registry) loadSchemaResources(f fs.FS) error {
+	entries, err := fs.ReadDir(f, "manifest/schemas")
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read schema directory: %w", err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".schema.json") {
+			continue
+		}
+		typeName := strings.TrimSuffix(entry.Name(), ".schema.json")
+		schemaPath := path.Join("manifest", "schemas", entry.Name())
+		raw, err := fs.ReadFile(f, schemaPath)
+		if err != nil {
+			return fmt.Errorf("read schema %s: %w", schemaPath, err)
+		}
+		document, err := NewSchemaDocument("embedded://"+schemaPath, raw)
+		if err != nil {
+			return fmt.Errorf("load schema %s: %w", schemaPath, err)
+		}
+		r.schemaResources[typeName] = SchemaResource{
+			Type:     typeName,
+			URI:      document.URI(),
+			Source:   TypeSourceCore.String(),
+			Document: document.JSON(),
+		}
+	}
+	return nil
+}
+
 // Lookup returns the TypeSpec for the named type. The boolean is false if
 // the name is not registered. The returned spec is a copy; callers may not
 // mutate the registry through it.
@@ -107,7 +160,7 @@ func (r *Registry) Lookup(name string) (TypeSpec, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	spec, ok := r.types[name]
-	return spec, ok
+	return cloneTypeSpec(spec), ok
 }
 
 // Has reports whether the named type is registered.
@@ -125,7 +178,7 @@ func (r *Registry) All() []TypeSpec {
 	r.mu.RLock()
 	out := make([]TypeSpec, 0, len(r.types))
 	for _, spec := range r.types {
-		out = append(out, spec)
+		out = append(out, cloneTypeSpec(spec))
 	}
 	r.mu.RUnlock()
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
@@ -162,8 +215,32 @@ func (r *Registry) registerLocked(spec TypeSpec) error {
 	if _, exists := r.types[spec.Name]; exists {
 		return fmt.Errorf("%w: %q", ErrConflict, spec.Name)
 	}
+	if spec.TypeScript.DataType == "" {
+		spec.TypeScript.DataType = TypeScriptDataTypeName(spec.Name)
+	}
+	spec = cloneTypeSpec(spec)
 	r.types[spec.Name] = spec
+	r.recordSchemaResourceLocked(spec)
 	return nil
+}
+
+func (r *Registry) recordSchemaResourceLocked(spec TypeSpec) {
+	if spec.DataSchemaDocument == nil {
+		return
+	}
+	r.schemaResources[spec.Name] = SchemaResource{
+		Type:     spec.Name,
+		URI:      spec.DataSchemaDocument.URI(),
+		Source:   spec.Source.String(),
+		PluginID: spec.PluginID,
+		Document: spec.DataSchemaDocument.JSON(),
+	}
+}
+
+func cloneTypeSpec(spec TypeSpec) TypeSpec {
+	spec.UIMetadata = cloneStringAnyMap(spec.UIMetadata)
+	spec.TypeScript = cloneTypeScriptMetadata(spec.TypeScript)
+	return spec
 }
 
 // defaultRegistry is the lazy singleton returned by Default().

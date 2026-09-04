@@ -4,7 +4,9 @@
 Protocol** — a small wire format for typed, host-rendered payloads that
 agents send to host applications. The package ships a manifest-driven
 type registry, JSON-Schema validator, and plugin extension API for
-runtime registration of additional envelope types.
+runtime registration of additional envelope types. The same module also owns
+the build-time catalog and TypeScript generator, so consumers do not need a
+sibling checkout of this repository.
 
 It is transport-agnostic. It does not bind to MCP, SSE, or any other
 transport — those concerns live in the host application. It also does
@@ -66,18 +68,71 @@ More runnable examples live under [`examples/`](examples/):
 - `examples/contract` — wire `envelopestest.RunContract` into a host's
   test suite. Run with `go test ./examples/contract`.
 
+## Build-time generation
+
+Pin this module in the consuming application's `go.mod`, then run the command
+from that application:
+
+```sh
+go run github.com/hollis-labs/go-envelopes/cmd/envelopes-export \
+  -format catalog -output envelope-catalog.json
+
+go run github.com/hollis-labs/go-envelopes/cmd/envelopes-export \
+  -format typescript -output envelope-types.generated.ts
+```
+
+Both outputs state the selected module version, protocol version, and manifest
+digest. The catalog contains the embedded YAML manifest, manifest schema,
+per-type JSON Schemas, annotations, and component import metadata. The
+TypeScript output is host-neutral: it emits data types and import metadata but
+does not prescribe React, a loader, or presentation wording.
+
+Go-based generators and plugin hosts can use the same surface directly:
+
+```go
+catalog, err := registry.ExportCatalog()
+if err != nil {
+    return err
+}
+source, err := codegen.TypeScript(catalog, codegen.TypeScriptOptions{})
+```
+
+See [`docs/generation.md`](docs/generation.md) for migration and plugin examples.
+
+## Structured validation
+
+Schema failures remain compatible with `errors.Is(err,
+envelopes.ErrSchemaValidation)` and now expose bounded structured details:
+
+```go
+var validationErr *envelopes.ValidationError
+if errors.As(err, &validationErr) {
+    for _, failure := range validationErr.Details() {
+        log.Printf("instance=%s schema=%s keyword=%s expected=%v actual=%v",
+            failure.InstancePath, failure.SchemaPath, failure.Keyword,
+            failure.Expected, failure.Actual)
+    }
+}
+```
+
+`TypeSpec.DataSchemaDocument` exposes parsed `SchemaMetadata`, including custom
+annotation keywords, without requiring consumers to reopen embedded files.
+Hosts decide how those facts are worded or presented to users.
+
 ## Layout
 
 - `manifest/` — canonical YAML manifest + per-type JSON Schemas (single source of truth, language-agnostic).
 - `*.go` (root package `envelopes`) — registry, validator, plugin extension API.
 - `envelopestest/` — contract test helper for downstream consumers.
 - `docs/` — manifest spec, extension API guide.
+- `cmd/envelopes-export/`, `codegen/` — module-resolved catalog and TypeScript generation.
 - `examples/` — runnable demonstrations of the public API.
 
 ## Docs
 
 - [`docs/manifest-spec.md`](docs/manifest-spec.md) — manifest format.
 - [`docs/extension-api.md`](docs/extension-api.md) — plugin extension API.
+- [`docs/generation.md`](docs/generation.md) — catalog/codegen API and migration guide.
 
 ## Related libraries
 

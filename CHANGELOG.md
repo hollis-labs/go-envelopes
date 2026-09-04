@@ -6,6 +6,54 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Module-owned build-time catalog export: `Registry.ExportCatalog` exposes the
+  canonical YAML manifest, manifest schema, raw per-type JSON Schemas, typed
+  TypeScript/import metadata, plugin registrations, and deterministic source
+  identity. `cmd/envelopes-export` emits that catalog or generated TypeScript
+  from the exact module version selected by a consumer's `go.mod`, removing the
+  need for a sibling source checkout.
+- Host-neutral TypeScript generation in `codegen.TypeScript`, including data
+  interfaces/aliases, local `$defs`, `EnvelopeType`, `EnvelopeDataMap`, and
+  structured component import metadata. Compatibility schemas that are shipped
+  but not registered are an explicit opt-in.
+- `SchemaDocument` and `SchemaMetadata` expose source JSON, standard
+  annotations, common validation vocabulary, and uninterpreted custom
+  annotations. Core and `RegisterTypeFromManifest` plugin schemas use the same
+  surface.
+- `ValidationError.Details` returns bounded structured leaf failures with
+  instance/schema pointers, schema URI and keyword, expected values,
+  actual-value summaries, and applicable schema metadata. Existing
+  `errors.Is`/`errors.As` behavior and the wrapped
+  `*jsonschema.ValidationError` remain intact.
+- Consumer-style integration coverage runs a separate temporary Go module and
+  proves runtime validation, plugin extension, catalog export, annotations, and
+  TypeScript generation work outside the library checkout.
+
+### Changed
+- `TypeSpec` now carries `DataSchemaDocument`, `PayloadSchemaDocument`, and
+  typed `TypeScript` metadata. The legacy `UIMetadata` map remains populated for
+  v0.3 source compatibility. Registry lookup/export paths defensively copy
+  mutable metadata.
+- Unknown core-manifest entry keys are preserved as import metadata extras
+  rather than dropped. The library preserves these hints but does not assign
+  host-specific presentation semantics.
+
+### Migration
+- Replace scripts that open
+  `../../libs/go-envelopes/manifest/{envelopes.yaml,schemas/}` with
+  `go run github.com/hollis-labs/go-envelopes/cmd/envelopes-export -format
+  catalog` (for host wrapper generators) or `-format typescript` (for the
+  module-owned data types). Generated headers now identify their module version
+  and manifest digest.
+- Replace raw `EmbeddedFS` reads used only to recover annotations with
+  `spec.DataSchemaDocument.Metadata()` or `MetadataAtInstancePath`. Keep
+  host-specific wording and routing decisions in the host.
+- Plugin hosts already using `RegisterTypeFromManifest` need no separate path:
+  their schemas and import metadata now appear in `ExportCatalog` and
+  `codegen.TypeScript`. Direct `RegisterType` callers should provide a
+  `DataSchemaDocument` when build-time schema export is required.
+
 ## [0.3.0] - 2026-08-24
 
 ### Changed

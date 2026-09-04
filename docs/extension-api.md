@@ -101,4 +101,38 @@ for _, spec := range registry.All() {
 ```
 
 `TypeSpec.UIMetadata` carries TS-side rendering hints unchanged; Go
-hosts can ignore it or surface it through their own UI tools.
+hosts can ignore it or surface it through their own UI tools. New code should
+prefer the typed `TypeSpec.TypeScript.Import`; `UIMetadata` remains available
+for v0.3 source compatibility.
+
+## Build-time export and schema annotations
+
+Plugin registrations made with `RegisterTypeFromManifest` participate in the
+same catalog and TypeScript generation surface as core types:
+
+```go
+if err := registry.RegisterTypeFromManifest(manifest, schema, pluginID); err != nil {
+    return err
+}
+catalog, err := registry.ExportCatalog()
+if err != nil {
+    return err
+}
+generated, err := codegen.TypeScript(catalog, codegen.TypeScriptOptions{})
+```
+
+The resulting `CatalogType` has `source: "plugin"`, `pluginId`, typed import
+metadata, and a `schemaURI` linked to its `SchemaResource`. Unloading the plugin
+removes both the registry type and its exported schema resource.
+
+`TypeSpec.DataSchemaDocument` retains the plugin's JSON Schema source and
+exposes `Metadata`/`MetadataAtInstancePath`. Unknown schema annotations are
+preserved under `SchemaMetadata.Custom` without assigning host-specific
+semantics. Validation failures for plugin types are returned as the same
+`ValidationError.Details()` records used by core types.
+
+Advanced callers using `RegisterType` directly may provide a
+`DataSchemaDocument` created by `NewSchemaDocument`. When `DataSchema` is nil,
+`RegisterType` compiles that document. Supplying only an already-compiled
+`DataSchema` remains supported, but its unavailable source JSON and annotations
+cannot appear in exported artifacts.

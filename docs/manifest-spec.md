@@ -92,9 +92,12 @@ Example (`info-card.schema.json`):
 
 Schemas MAY carry annotations the JSON Schema compiler does not interpret.
 The seed manifest uses `default_render_target` (a panel ID) for host-side
-routing hints; that keyword is not consumed by the registry — consumers
-that care can read the raw schema document via `EmbeddedFS()` or by
-carrying their own copy.
+routing hints. The registry preserves unknown keywords without interpreting
+them: consumers can read the value from
+`TypeSpec.DataSchemaDocument.Metadata().Custom`. This keeps host presentation
+policy outside the library while avoiding filesystem access and duplicate JSON
+parsing. Raw JSON remains available through `SchemaDocument.JSON()` and the
+exported `Catalog.Schemas` list.
 
 ## Plugin-supplied manifests
 
@@ -107,13 +110,11 @@ with core manifests.
 ## ts-envelopes parity
 
 `ts-envelopes` reads the same YAML + JSON Schemas as its source of truth.
-No Go-specific keys live in the manifest, and Go does not interpret the
-TS-specific keys it knows about beyond surfacing them through
-`TypeSpec.UIMetadata`. **Unknown YAML keys are dropped by Go's decoder**
-— adding a brand-new TS-side rendering hint that Go must also expose to
-downstream tooling requires either bumping `go-envelopes` with a new
-field on `ManifestEntry` (and a minor release) or reading the raw
-manifest bytes via `EmbeddedFS()`. Out-of-band metadata that Go never
-needs to surface (e.g. TS-only documentation strings) can be added to
-the YAML freely; `ts-envelopes` will see it and Go will simply ignore
-it.
+No Go-specific keys live in the manifest, and Go does not assign semantics to
+TS-specific keys. The known `component`/`export`/`props` keys are available on
+`TypeSpec.TypeScript.Import`; unknown entry keys are preserved in
+`ImportMetadata.Extra` and the generator catalog. This lets metadata evolve
+without teaching every consumer how to locate and re-parse the YAML.
+
+For module-resolved export and host-neutral TypeScript generation, see
+[`generation.md`](generation.md).

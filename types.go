@@ -166,18 +166,41 @@ func (s TypeSource) String() string {
 // Schema (e.g. message-* types in the core seed). PayloadSchema is
 // populated only when ResponseKind == data and the type ships a schema.
 //
-// UIMetadata carries TS-side rendering hints (component, export, props)
-// extracted verbatim from the YAML manifest. Go consumers ignore these
-// fields; downstream tooling (TS codegen, plugin scaffolders) reads them
-// through Registry.All().
+// DataSchemaDocument and PayloadSchemaDocument retain module-owned source JSON
+// and parsed metadata alongside their compiled validators. TypeScript carries
+// typed generator/import metadata. UIMetadata remains as a compatibility view
+// of the same import hints for v0.3 consumers.
 type TypeSpec struct {
-	Name          string
-	Version       string
-	DataSchema    *jsonschema.Schema
-	ResponseKind  ResponseKind
-	PayloadSchema *jsonschema.Schema
-	Description   string
-	Source        TypeSource
-	PluginID      string
-	UIMetadata    map[string]any
+	Name                  string
+	Version               string
+	DataSchema            *jsonschema.Schema
+	DataSchemaDocument    *SchemaDocument
+	ResponseKind          ResponseKind
+	PayloadSchema         *jsonschema.Schema
+	PayloadSchemaDocument *SchemaDocument
+	Description           string
+	Source                TypeSource
+	PluginID              string
+	TypeScript            TypeScriptMetadata
+
+	// UIMetadata is retained for source compatibility with v0.3 consumers.
+	// New generators should use TypeScript.Import, whose typed fields avoid
+	// repeating string-key lookups at every consumer.
+	UIMetadata map[string]any
+}
+
+// TypeScriptMetadata is module-owned metadata used by TypeScript generators.
+// DataType is the stable exported data-type identifier derived from Name.
+type TypeScriptMetadata struct {
+	DataType string         `json:"dataType"`
+	Import   ImportMetadata `json:"import,omitempty"`
+}
+
+// ImportMetadata describes a host component import without prescribing how a
+// particular host loads or renders that component.
+type ImportMetadata struct {
+	Component string         `json:"component,omitempty"`
+	Export    string         `json:"export,omitempty"`
+	Props     string         `json:"props,omitempty"`
+	Extra     map[string]any `json:"extra,omitempty"`
 }
