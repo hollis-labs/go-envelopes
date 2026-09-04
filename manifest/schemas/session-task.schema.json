@@ -16,8 +16,8 @@
     },
     "status": {
       "type": "string",
-      "enum": ["pending", "in_progress", "completed", "failed", "canceled"],
-      "description": "Current task status."
+      "enum": ["pending", "in_progress", "completed", "failed", "canceled", "cancelled"],
+      "description": "Current task status. Use \"canceled\" for new payloads. The legacy \"cancelled\" spelling remains readable through go-envelopes v0.4.x and is scheduled for removal in v0.5.0."
     },
     "description": {
       "type": "string",

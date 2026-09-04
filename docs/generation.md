@@ -172,3 +172,17 @@ booleans, JSON numbers, and validation counts are retained. The legacy wrapped
 raw underlying error may contain rejected payload values and must be treated as
 sensitive. `ValidationError.Error()` and `Details()` are the bounded surfaces
 intended for ordinary logs and diagnostics.
+
+## Cancellation compatibility in generated types
+
+US English is canonical for new wire data: `"canceled"` and
+`"user-canceled"`. The `session-task` schema and generated TypeScript also
+include the legacy `"cancelled"` status during v0.4.x so persisted v0.2 data
+remains representable. The property description marks `"canceled"` as the
+value to emit. The legacy schema value is scheduled for removal in v0.5.0.
+
+Go response values follow the same window. New code uses
+`ResponseStatusCanceled` and `ErrorCodeUserCanceled`; readers can call
+`ResponseStatus.Canonical` and `CanonicalErrorCode` before re-emitting legacy
+data. The British-spelled Go constants remain deprecated compatibility values,
+not the canonical contract.

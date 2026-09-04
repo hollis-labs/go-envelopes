@@ -95,4 +95,29 @@ func RunContract(t *testing.T, reg *envelopes.Registry) {
 			t.Errorf("ack response failed validation: %v", err)
 		}
 	})
+
+	t.Run("response-cancellation-vocabulary", func(t *testing.T) {
+		t.Helper()
+		canonical := &envelopes.Response{
+			V:          envelopes.ProtocolVersion,
+			EnvelopeID: "envelopestest_cancel_canonical",
+			Kind:       envelopes.ResponseKindAck,
+			Status:     envelopes.ResponseStatusCanceled,
+		}
+		if err := reg.ValidateResponse("info-card", canonical); err != nil {
+			t.Errorf("canonical canceled response failed validation: %v", err)
+		}
+
+		legacy := *canonical
+		legacy.EnvelopeID = "envelopestest_cancel_legacy"
+		// Model decoded v0.2 wire data directly; new source should not use the
+		// deprecated British-spelled exported constant.
+		legacy.Status = envelopes.ResponseStatus("cancelled")
+		if err := reg.ValidateResponse("info-card", &legacy); err != nil {
+			t.Errorf("legacy cancelled response failed v0.4.x compatibility validation: %v", err)
+		}
+		if got := legacy.Status.Canonical(); got != envelopes.ResponseStatusCanceled {
+			t.Errorf("legacy status canonicalized to %q", got)
+		}
+	})
 }

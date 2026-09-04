@@ -3,8 +3,8 @@
 # This file is consumed by:
 #   - go-envelopes (this repo): loaded via go:embed at runtime to seed the
 #     core type registry. See registry.go (LoadCore) and types.go.
-#   - ts-envelopes (separate repo): codegen reads it to emit Zod schemas
-#     and TypeScript types.
+#   - codegen.TypeScript / cmd/envelopes-export: build-time consumers use the
+#     embedded catalog to emit host-neutral TypeScript types and import hints.
 #
 # Adding a new core envelope type:
 #   1. Add an entry here (type + optional component/export for TS rendering).
@@ -12,7 +12,7 @@
 #      the envelope's `data` payload (optional — entries without a schema
 #      register without one, and validation passes on type-name alone).
 #   3. Add tests covering known-good and known-bad payloads.
-#   4. Tag a minor release. ts-envelopes pulls from this manifest.
+#   4. Tag a minor release. Module-owned generation reads this manifest.
 #
 # If a type has no frontend component yet, omit `component` and `export`.
 # Go registers it for validation; TS codegen skips component generation.

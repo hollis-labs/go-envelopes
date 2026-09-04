@@ -37,6 +37,7 @@ func TestTypeScript_generatesDataTypesAndImportMetadata(t *testing.T) {
 		"Source: " + envelopes.ModulePath + "@",
 		"export interface InfoCardData",
 		`variant?: "info" | "success" | "warning" | "danger";`,
+		`status: "pending" | "in_progress" | "completed" | "failed" | "canceled" | "cancelled";`,
 		"export interface EnvelopeDataMap",
 		"export const ENVELOPE_IMPORT_METADATA",
 		`"info-card": { component: "components/chat/envelopes/primitives/InfoCard", export: "InfoCard", source: "core"`,
@@ -44,6 +45,9 @@ func TestTypeScript_generatesDataTypesAndImportMetadata(t *testing.T) {
 		if !strings.Contains(output, required) {
 			t.Fatalf("generated output missing %q", required)
 		}
+	}
+	if !strings.Contains(output, `Use "canceled" for new payloads.`) {
+		t.Fatal("generated session-task status does not document the canonical spelling")
 	}
 	if strings.Contains(output, "KbResultData") {
 		t.Fatal("unregistered compatibility schema emitted without opt-in")

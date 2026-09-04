@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-04
+
 ### Added
 - Module-owned build-time catalog export: `Registry.ExportCatalog` exposes the
   canonical YAML manifest, manifest schema, raw per-type JSON Schemas, typed
@@ -31,6 +33,12 @@ adheres to [Semantic Versioning](https://semver.org/).
   TypeScript generation work outside the library checkout.
 
 ### Changed
+- The cancellation vocabulary is coherent and US-English-first across the Go
+  API, response wire values, the `session-task` schema, and generated
+  TypeScript. New code uses `ResponseStatusCanceled` (`"canceled"`) and
+  `ErrorCodeUserCanceled` (`"user-canceled"`). `ResponseStatus.IsCanonical`
+  distinguishes new-output values, while `ResponseStatus.Canonical` and
+  `CanonicalErrorCode` normalize persisted legacy input before re-emission.
 - `TypeSpec` now carries `DataSchemaDocument`, `PayloadSchemaDocument`, and
   typed `TypeScript` metadata. The legacy `UIMetadata` map remains populated for
   v0.3 source compatibility. Registry lookup/export paths defensively copy
@@ -47,7 +55,22 @@ adheres to [Semantic Versioning](https://semver.org/).
   open, and `ValidationError.Error()` no longer includes the raw validator
   message.
 
+### Deprecated
+- `ResponseStatusCancelled` (`"cancelled"`) and
+  `ErrorCodeUserCancelled` (`"user-cancelled"`) remain source- and wire-stable
+  compatibility values throughout v0.4.x. The `session-task` schema and
+  generated TypeScript likewise accept both `"canceled"` and legacy
+  `"cancelled"` in this window. New emitters must use the US spelling. The
+  British-spelled constants and accepted wire values are scheduled for removal
+  in v0.5.0.
+
 ### Migration
+- From v0.2.x, stop emitting `"cancelled"` / `"user-cancelled"`; migrate stored
+  values when practical and use `ResponseStatus.Canonical` plus
+  `CanonicalErrorCode` while reading unmigrated records. Existing Go callers
+  keep compiling and their deprecated constants retain their exact historical
+  values during v0.4.x. From v0.3.0, the `session-task` canonical spelling stays
+  `"canceled"`; v0.4.0 only restores bounded read compatibility for v0.2 data.
 - Replace scripts that open
   `../../libs/go-envelopes/manifest/{envelopes.yaml,schemas/}` with
   `go run github.com/hollis-labs/go-envelopes/cmd/envelopes-export -format

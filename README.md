@@ -14,7 +14,7 @@ not persist envelope instances; storage is host-defined.
 
 ## Status
 
-`v0.3.x` — pre-1.0. Public API may shift between minor versions; see
+`v0.4.x` — pre-1.0. Public API may shift between minor versions; see
 the CHANGELOG for breaking changes. The wire-format major version
 (`Envelope.V`) is independent of the library version.
 
@@ -122,6 +122,28 @@ Hosts decide how those facts are worded or presented to users.
 `ValidationError.Error()` and `Details()` are safe bounded diagnostic surfaces.
 The raw validator error remains available through `errors.As` for compatibility,
 but may contain rejected payload values and should not be logged.
+
+## Cancellation vocabulary
+
+The canonical wire spelling is US English: `"canceled"` for response and
+`session-task` statuses, and `"user-canceled"` for the protocol error code.
+Use `ResponseStatusCanceled` and `ErrorCodeUserCanceled` for new output.
+
+For a bounded migration window, v0.4.x continues to read the v0.2-era
+`"cancelled"` status and `"user-cancelled"` error code. The deprecated
+`ResponseStatusCancelled` and `ErrorCodeUserCancelled` constants keep their
+historical values so existing emitters do not silently change wire behavior on
+upgrade. Normalize stored input before re-emitting it:
+
+```go
+response.Status = response.Status.Canonical()
+if response.Error != nil {
+    response.Error.Code = envelopes.CanonicalErrorCode(response.Error.Code)
+}
+```
+
+The compatibility spellings and deprecated Go names are scheduled for removal
+in v0.5.0. New payloads should not depend on the v0.4.x exception.
 
 ## Layout
 

@@ -86,6 +86,29 @@ func TestValidateEnvelope_typeWithoutSchema(t *testing.T) {
 	}
 }
 
+func TestValidateEnvelope_sessionTaskCancellationCompatibility(t *testing.T) {
+	registry := mustLoad(t)
+	for _, status := range []string{"canceled", "cancelled"} {
+		t.Run(status, func(t *testing.T) {
+			envelope := &Envelope{
+				V: ProtocolVersion, ID: "session_task_" + status, Type: "session-task",
+				Data: map[string]any{"task_id": "task-1", "title": "Task", "status": status},
+			}
+			if err := registry.ValidateEnvelope(envelope); err != nil {
+				t.Fatalf("session-task status %q rejected: %v", status, err)
+			}
+		})
+	}
+
+	invalid := &Envelope{
+		V: ProtocolVersion, ID: "session_task_invalid", Type: "session-task",
+		Data: map[string]any{"task_id": "task-1", "title": "Task", "status": "aborted"},
+	}
+	if err := registry.ValidateEnvelope(invalid); !errors.Is(err, ErrSchemaValidation) {
+		t.Fatalf("unknown session-task status error = %v, want ErrSchemaValidation", err)
+	}
+}
+
 func TestValidateEnvelope_baseShape(t *testing.T) {
 	r := mustLoad(t)
 	tests := []struct {

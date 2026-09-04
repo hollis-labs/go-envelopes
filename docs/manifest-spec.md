@@ -2,8 +2,8 @@
 
 `go-envelopes` is manifest-driven. The YAML in `manifest/envelopes.yaml`,
 together with the per-type JSON Schemas in `manifest/schemas/`, is the
-canonical source of truth. The same files feed `ts-envelopes` codegen
-without modification.
+canonical source of truth. The module-owned `codegen.TypeScript` generator and
+`cmd/envelopes-export` command consume the same embedded files.
 
 ## File layout
 
@@ -107,14 +107,19 @@ via the [extension API](extension-api.md). The same shape (`type`,
 `Registry.RegisterTypeFromManifest` so plugin manifests stay symmetrical
 with core manifests.
 
-## ts-envelopes parity
+## TypeScript parity
 
-`ts-envelopes` reads the same YAML + JSON Schemas as its source of truth.
-No Go-specific keys live in the manifest, and Go does not assign semantics to
-TS-specific keys. The known `component`/`export`/`props` keys are available on
+`codegen.TypeScript` reads the exported catalog built from the same YAML + JSON
+Schemas as runtime validation. No Go-only schema fork exists. The known
+`component`/`export`/`props` keys are available on
 `TypeSpec.TypeScript.Import`; unknown entry keys are preserved in
 `ImportMetadata.Extra` and the generator catalog. This lets metadata evolve
 without teaching every consumer how to locate and re-parse the YAML.
+
+The canonical cancellation status is `"canceled"`. The `session-task` schema
+also recognizes legacy `"cancelled"` through v0.4.x so old persisted payloads
+remain readable; its description and enum order identify `"canceled"` as the
+new-output value. The compatibility value is scheduled for removal in v0.5.0.
 
 For module-resolved export and host-neutral TypeScript generation, see
 [`generation.md`](generation.md).

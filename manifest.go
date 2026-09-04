@@ -12,8 +12,8 @@ import (
 
 // embeddedManifest carries the canonical YAML manifest plus per-type JSON
 // Schemas. Consumers that ship the lib in a binary get the catalog without
-// any filesystem dependency. The same files are also published at the repo
-// root for ts-envelopes and other downstream tools.
+// any filesystem dependency. The same files are also exported through the
+// module-owned catalog for downstream generation tools.
 //
 //go:embed manifest/envelopes.yaml manifest/envelopes.schema.json manifest/schemas/*.schema.json
 var embeddedManifest embed.FS

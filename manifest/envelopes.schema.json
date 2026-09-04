@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "envelopes-v1.schema.json",
-  "title": "go-envelopes / ts-envelopes Manifest",
+  "title": "go-envelopes Manifest",
   "description": "Defines core envelope types for Go validation and TypeScript codegen. Runtime envelope instances carry additional fields not modeled here (presentation, trace, etc.) — see types.go for the Envelope struct and docs/manifest-spec.md for the full manifest contract. Host-specific routing fields (e.g. drawer/panel ids) belong on each host's own wrapper struct, not in go-envelopes.",
   "type": "object",
   "required": ["core"],

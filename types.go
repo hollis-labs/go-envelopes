@@ -91,19 +91,45 @@ type ResponseStatus string
 
 const (
 	ResponseStatusSubmitted ResponseStatus = "submitted"
-	ResponseStatusCancelled ResponseStatus = "cancelled"
+	ResponseStatusCanceled  ResponseStatus = "canceled"
 	ResponseStatusPartial   ResponseStatus = "partial"
 	ResponseStatusError     ResponseStatus = "error"
+
+	// ResponseStatusCancelled is the legacy British-spelled wire value.
+	//
+	// Deprecated: use ResponseStatusCanceled for new responses. The legacy
+	// spelling remains recognized throughout v0.4.x so v0.2-era persisted
+	// responses can be read and existing emitters can migrate without a flag
+	// day. It is scheduled for removal in v0.5.0.
+	ResponseStatusCancelled ResponseStatus = "cancelled"
 )
 
-// IsValid reports whether s is one of the canonical response statuses.
-func (s ResponseStatus) IsValid() bool {
+// IsCanonical reports whether s is one of the canonical response statuses.
+// The legacy ResponseStatusCancelled compatibility value is not canonical.
+func (s ResponseStatus) IsCanonical() bool {
 	switch s {
-	case ResponseStatusSubmitted, ResponseStatusCancelled,
+	case ResponseStatusSubmitted, ResponseStatusCanceled,
 		ResponseStatusPartial, ResponseStatusError:
 		return true
 	}
 	return false
+}
+
+// IsValid reports whether s is a recognized response status. In v0.4.x this
+// includes the legacy ResponseStatusCancelled wire value; new responses should
+// use a status for which IsCanonical reports true.
+func (s ResponseStatus) IsValid() bool {
+	return s.IsCanonical() || s == ResponseStatusCancelled
+}
+
+// Canonical returns the canonical US-English spelling of s. It maps the v0.4.x
+// legacy cancellation value to ResponseStatusCanceled and leaves all other
+// values unchanged. Call IsValid before Canonical when rejecting unknown input.
+func (s ResponseStatus) Canonical() ResponseStatus {
+	if s == ResponseStatusCancelled {
+		return ResponseStatusCanceled
+	}
+	return s
 }
 
 // Handle is the optional handle returned with ack and async-ack responses.
@@ -136,8 +162,23 @@ const (
 	ErrorCodeComponentLoadFailed = "component-load-failed"
 	ErrorCodeTimeout             = "timeout"
 	ErrorCodeHostError           = "host-error"
-	ErrorCodeUserCancelled       = "user-cancelled"
+	ErrorCodeUserCanceled        = "user-canceled"
+
+	// ErrorCodeUserCancelled is the legacy British-spelled wire value.
+	//
+	// Deprecated: use ErrorCodeUserCanceled for new responses. The legacy value
+	// remains readable throughout v0.4.x and is scheduled for removal in v0.5.0.
+	ErrorCodeUserCancelled = "user-cancelled"
 )
+
+// CanonicalErrorCode returns the canonical US-English spelling for a known
+// legacy error code and preserves all other codes, including extension codes.
+func CanonicalErrorCode(code string) string {
+	if code == ErrorCodeUserCancelled {
+		return ErrorCodeUserCanceled
+	}
+	return code
+}
 
 // TypeSource identifies whether a registered type was loaded from the core
 // manifest or registered at runtime by a plugin.

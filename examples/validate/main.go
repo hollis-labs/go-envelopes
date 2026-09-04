@@ -43,6 +43,20 @@ func main() {
 	}
 	fmt.Println("known-good info-card validated OK")
 
+	// New responses use the canonical US-English cancellation vocabulary.
+	// ValidateResponse still recognizes v0.2-era "cancelled" input throughout
+	// v0.4.x; call ResponseStatus.Canonical before re-emitting stored input.
+	response := &envelopes.Response{
+		V:          envelopes.ProtocolVersion,
+		EnvelopeID: good.ID,
+		Kind:       envelopes.ResponseKindAck,
+		Status:     envelopes.ResponseStatusCanceled,
+	}
+	if err := reg.ValidateResponse(good.Type, response); err != nil {
+		log.Fatalf("known-good response failed validation: %v", err)
+	}
+	fmt.Println("known-good canceled response validated OK")
+
 	// Known-bad envelope: unknown type. Surfaces ErrUnknownType so
 	// callers can branch on the typed error.
 	bad := &envelopes.Envelope{

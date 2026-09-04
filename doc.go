@@ -11,6 +11,6 @@
 // other transport — those concerns live in consumer apps. It also does not
 // persist envelope instances; storage is per-host.
 //
-// A TypeScript companion package consumes the same YAML manifest for
-// parity between Go and TypeScript host applications.
+// The module-owned codegen package consumes the same exported catalog for
+// parity between Go runtime validation and TypeScript host applications.
 package envelopes
