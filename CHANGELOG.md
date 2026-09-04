@@ -65,6 +65,20 @@ adheres to [Semantic Versioning](https://semver.org/).
   in v0.5.0.
 
 ### Migration
+- The v0.3.0 `ManifestEntry` and `ValidationError` value types were comparable;
+  v0.4.0 adds map/slice fields, so they no longer satisfy Go's `comparable`
+  constraint and cannot be compared with `==` or used as map keys. Key
+  manifests by a stable scalar such as `entry.Type`, compare only the fields
+  relevant to the caller, and inspect validation failures with `errors.Is`,
+  `errors.As`, and `ValidationError.Details` instead of comparing
+  `ValidationError` values.
+- v0.4.0 adds exported fields to `ManifestEntry`, `ValidationError`, and
+  `TypeSpec`, so external unkeyed composite literals for those types no longer
+  compile. Convert positional literals to keyed literals, for example
+  `envelopes.ManifestEntry{Type: "info-card", Component: "cards/InfoCard",
+  Export: "InfoCard"}` and `envelopes.TypeSpec{Name: "plugin.card", Source:
+  envelopes.TypeSourcePlugin}`. Keyed literals also remain source-compatible
+  when later releases add fields.
 - From v0.2.x, stop emitting `"cancelled"` / `"user-cancelled"`; migrate stored
   values when practical and use `ResponseStatus.Canonical` plus
   `CanonicalErrorCode` while reading unmigrated records. Existing Go callers

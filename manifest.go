@@ -76,9 +76,9 @@ func ParseManifest(data []byte) (*Manifest, error) {
 	return &m, nil
 }
 
-// uiMetadataForEntry returns the entry's TS-side rendering hints as a map
-// the registry can store on its TypeSpec. Empty when the entry has no
-// rendering metadata.
+// uiMetadataForEntry returns the entry's host component import metadata as the
+// v0.3-compatible map the registry stores alongside its typed TypeScript view.
+// It is empty when the entry has no import metadata.
 func uiMetadataForEntry(e ManifestEntry) map[string]any {
 	out := cloneStringAnyMap(e.Extra)
 	if out == nil {

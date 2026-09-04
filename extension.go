@@ -150,8 +150,9 @@ type PluginManifestEntry struct {
 	Version      string `yaml:"version,omitempty" json:"version,omitempty"`
 	Description  string `yaml:"description,omitempty" json:"description,omitempty"`
 	ResponseKind string `yaml:"responseKind,omitempty" json:"responseKind,omitempty"`
-	// UIMetadata is a passthrough bag for TS-side rendering hints
-	// (component, export, props, etc.). The Go side does not interpret it.
+	// UIMetadata is the v0.3-compatible view of host component import metadata
+	// (component, export, props, etc.). The registry preserves and exports it;
+	// hosts decide how to load or render the referenced component.
 	UIMetadata map[string]any `yaml:"ui,omitempty" json:"ui,omitempty"`
 }
 

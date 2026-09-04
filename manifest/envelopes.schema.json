@@ -26,12 +26,12 @@
         },
         "component": {
           "type": "string",
-          "description": "Path to React component relative to ui/src/ (without extension)."
+          "description": "Host component path preserved by the Go registry/catalog and emitted as import metadata by the module-owned TypeScript generator."
         },
         "export": {
           "type": "string",
           "pattern": "^[A-Z][A-Za-z0-9]+$",
-          "description": "Named export from the component module."
+          "description": "Named export from the component module, preserved by the Go registry/catalog and emitted as import metadata by the module-owned TypeScript generator."
         },
         "description": {
           "type": "string",
@@ -39,7 +39,7 @@
         },
         "props": {
           "type": "string",
-          "description": "Optional renderer-side prop discriminator (e.g. 'approval', 'proposal') for component dispatch in TS codegen. Ignored by Go."
+          "description": "Optional host-defined prop discriminator (e.g. 'approval', 'proposal'), preserved by the Go registry/catalog and emitted as import metadata by the module-owned TypeScript generator."
         }
       },
       "dependentRequired": {

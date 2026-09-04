@@ -162,10 +162,11 @@ in v0.5.0. New payloads should not depend on the v0.4.x exception.
 
 ## Related libraries
 
-`go-envelopes` is part of the Hollis Labs `go-*` portfolio. It pairs
-with a TypeScript companion that consumes the same YAML manifest, so
-host applications can render the same envelope catalog whether the host
-is written in Go or TypeScript.
+`go-envelopes` is part of the Hollis Labs `go-*` portfolio. This module owns
+both the Go registry/catalog API and the host-neutral TypeScript generator.
+Go and TypeScript hosts therefore consume the same embedded YAML manifest and
+JSON Schemas from the module version selected by the host's `go.mod`; there is
+no separate TypeScript companion package to install or synchronize.
 
 ## Contributing
 

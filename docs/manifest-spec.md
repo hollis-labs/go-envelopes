@@ -39,13 +39,17 @@ core:
 |---|---|---|
 | `type` | yes | Kebab-case identifier; matches the `type` field on the wire. |
 | `description` | no | Human/agent-facing description; surfaced through `TypeSpec.Description`. |
-| `component` | no (TS-side) | Path to the React component, relative to `ui/src/` in the consumer. Ignored by Go. |
-| `export` | no (TS-side, paired with `component`) | Named export from the component module. Ignored by Go. |
-| `props` | no (TS-side) | Renderer-side prop discriminator (e.g. `approval`, `proposal`). Ignored by Go. |
+| `component` | no (paired with `export`) | Host component path, preserved in `TypeSpec.TypeScript.Import.Component` and the exported catalog. |
+| `export` | no (paired with `component`) | Named export from the component module, preserved in `TypeSpec.TypeScript.Import.Export` and the exported catalog. |
+| `props` | no | Host-defined prop discriminator (e.g. `approval`, `proposal`), preserved in `TypeSpec.TypeScript.Import.Props` and the exported catalog. |
 
-The Go side reads only `type` and `description` directly. `component`,
-`export`, and `props` flow through unchanged on `TypeSpec.UIMetadata` so
-TS codegen and scaffolding tools can read them via `Registry.All()`.
+The Go manifest loader reads and preserves every field above. It maps
+`component`, `export`, and `props` into the typed
+`TypeSpec.TypeScript.Import` metadata used by `Registry.ExportCatalog` and the
+module-owned `codegen.TypeScript` generator; `TypeSpec.UIMetadata` remains a
+compatibility view for v0.3 consumers. Runtime validation does not use these
+fields, and the library does not assign presentation or component-loading
+semantics to them. Hosts make those policy decisions.
 
 ### Adding a core type
 

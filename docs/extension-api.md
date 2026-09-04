@@ -100,10 +100,11 @@ for _, spec := range registry.All() {
 }
 ```
 
-`TypeSpec.UIMetadata` carries the same TS-side rendering hints semantically; Go
-hosts can ignore it or surface it through their own UI tools. New code should
-prefer the typed `TypeSpec.TypeScript.Import`; `UIMetadata` remains available
-for v0.3 source compatibility.
+`TypeSpec.TypeScript.Import` carries host component import metadata preserved
+by the Go registry and catalog for the module-owned TypeScript generator. The
+library does not assign rendering semantics to it; hosts can ignore it or
+surface it through their own UI tools. `TypeSpec.UIMetadata` remains available
+as the v0.3 compatibility view.
 
 `RegisterType` establishes an ownership boundary by encoding `UIMetadata` and
 `TypeScript.Import.Extra` as JSON and decoding them into canonical Go shapes:
