@@ -125,6 +125,45 @@ Hosts decide how those facts are worded or presented to users.
 The raw validator error remains available through `errors.As` for compatibility,
 but may contain rejected payload values and should not be logged.
 
+## Declaring which types you support
+
+A host that adopts the core catalog wholesale imports every type in it,
+including types it has no business handling. `TypeSupport` lets a consumer
+state its own answer, by name, and be told when that answer has gone stale:
+
+```go
+err := registry.CheckSupport(envelopes.TypeSupport{
+    Supports: hostRenderedTypes,
+    Excludes: map[string]string{
+        "subagent-spawn-approval": "ADR 0005 — not a session manager",
+        "chat-loop-terminated":    "ADR 0005 — not an agent launcher",
+    },
+})
+```
+
+Every registered type must be **claimed** — supported, or excluded with a
+reason. A type that is neither is reported as unclaimed, and `CheckSupport`
+returns a `*SupportGap` naming it.
+
+That requirement is the point. Excluding a type by leaving it out of a list is
+indistinguishable from never having heard of it, so a type someone deliberately
+rejected comes back silently the next time a consumer regenerates against a
+newer catalog. A named exclusion carrying a reason survives that regeneration,
+and makes adopting a new type a decision somebody has to write down. Run it from
+a test and a library upgrade that adds an envelope type becomes a failing build
+rather than a silent import.
+
+`SupportedTypes` returns the accounted-for set, filtered to what is actually
+registered — build a host dispatch table from that rather than from `All()`.
+
+**This library does not partition the catalog for you.** There is no wire-kind
+versus composition split to take half of: no core schema references another
+type's schema, and types that look composition-only (`list-card`,
+`confirmation-card`) are emitted standalone as whole interactions. The
+distinction that does exist is *emission authority* — whether an agent, a host
+decision flow, or the runtime may emit a type — and that is host policy rather
+than wire, so it belongs in the host that decides it.
+
 ## Responses: typed channels and the conflict contract
 
 An interactive envelope can return up to three different things, and `Response`

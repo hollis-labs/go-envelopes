@@ -7,6 +7,44 @@ adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **`TypeSupport`, `Registry.CheckSupport` and `Registry.SupportedTypes` — a
+  consumer declares which envelope types it handles, BY NAME.** Every
+  registered type must be claimed: supported, or excluded with a reason. A type
+  that is neither comes back as `*SupportGap.Unclaimed`, and `CheckSupport`
+  returns an error.
+
+  Excluding a type by leaving it out of a list is indistinguishable from never
+  having heard of it, so a deliberately-rejected type returns silently the next
+  time a consumer regenerates against a newer catalog. A named exclusion
+  carrying a reason survives regeneration and makes adopting a new type a
+  decision someone writes down. Run from a consumer test, a library upgrade that
+  adds a type becomes a failing build rather than a silent import.
+
+  The motivating case: `subagent-spawn-approval` and `chat-loop-terminated` are
+  boundary violations for a host that is neither an agent launcher nor a session
+  manager, and must stay excludable across catalog regenerations.
+
+  **No catalog partition ships, and that is a finding rather than an omission.**
+  The wire-kind versus pure-composition split this mechanism was expected to
+  expose does not exist in this catalog:
+
+  - No core schema references another type's schema. Every `$ref` is a local
+    `#/$defs` pointer, so no type is structurally nested inside another.
+  - Types believed to be composition-only are not. `list-card` and
+    `confirmation-card` are emitted standalone as whole interactions — that is
+    what the retirements of `todo-list` and `plan-review` did, and what their
+    `data_source` pointers exist to support.
+
+  All core types are wire kinds. The distinction that *does* exist is **emission
+  authority** — whether an agent, a host decision flow, or the runtime may emit
+  a given type — which classifies the current 18 as 10 agent-emittable, 3 host
+  decision-flow, 4 runtime-emitted and 1 backend-only. That axis is host policy,
+  not wire: the host that owns the emission path owns the answer, and one host's
+  allow-list is not another's. Encoding it here would repeat the mistake of the
+  `component` field removed in this same release — a shared contract asserting a
+  single host's local arrangement. So the library supplies the mechanism for a
+  consumer to state and verify its own policy, and asserts none of its own.
+
 - **Typed return channels on `Response`: `Answers []Answer` and
   `Decisions []Decision`.** An interactive envelope returns up to three
   different things — freeform data, answers to questions, dispositions of items
