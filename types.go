@@ -51,17 +51,51 @@ const (
 // The Kind field discriminates which optional payload-bearing field carries
 // data: Payload (Kind == data), Handle (Kind == ack | async-ack), Action
 // (Kind == ui), or Error (Kind == error).
+//
+// Answers and Decisions are typed return channels that sit alongside Payload
+// rather than inside it. An interactive envelope returns up to three
+// different things — freeform data, answers to questions, and decisions on
+// items — and collapsing them into one untyped blob loses the distinction at
+// exactly the point a consumer needs it. Both are optional; a card that
+// returns only freeform data uses Payload alone, as before.
 type Response struct {
 	V           int            `json:"v"`
 	EnvelopeID  string         `json:"envelopeId"`
 	Kind        ResponseKind   `json:"kind"`
 	Status      ResponseStatus `json:"status"`
 	Payload     any            `json:"payload,omitempty"`
+	Answers     []Answer       `json:"answers,omitempty"`
+	Decisions   []Decision     `json:"decisions,omitempty"`
 	Handle      *Handle        `json:"handle,omitempty"`
 	Action      string         `json:"action,omitempty"`
 	Error       *ResponseError `json:"error,omitempty"`
 	CompletedAt string         `json:"completedAt,omitempty"`
 	Meta        map[string]any `json:"meta,omitempty"`
+}
+
+// Answer is one reply to one question posed by an envelope.
+//
+// AcceptedSuggestion is a pointer so that "the user explicitly rejected the
+// suggestion" is distinguishable from "this envelope offered no suggestion" —
+// a bare false cannot carry that difference.
+type Answer struct {
+	QuestionID         string `json:"questionId"`
+	Value              any    `json:"value"`
+	AcceptedSuggestion *bool  `json:"acceptedSuggestion,omitempty"`
+	Note               string `json:"note,omitempty"`
+}
+
+// Decision is one disposition of one item presented by an envelope.
+//
+// Action is deliberately an open string: the set of dispositions belongs to
+// the interaction, not to the wire format. A triage card's "defer" and an
+// approval queue's "escalate" are both valid, and enumerating them here would
+// make the protocol the bottleneck for every new interaction.
+type Decision struct {
+	ItemID string         `json:"itemId"`
+	Action string         `json:"action"`
+	Note   string         `json:"note,omitempty"`
+	Meta   map[string]any `json:"meta,omitempty"`
 }
 
 // ResponseKind discriminates payload semantics.
@@ -130,6 +164,34 @@ func (s ResponseStatus) Canonical() ResponseStatus {
 		return ResponseStatusCanceled
 	}
 	return s
+}
+
+// IsTerminal reports whether s closes the interaction.
+//
+// This is the distinction a host needs to decide what a SECOND submission
+// against the same envelope means, and it is the one piece of response
+// semantics that was previously left for every host to reinvent:
+//
+//   - Terminal (submitted, canceled, error): the interaction is resolved. The
+//     host should record the response immutably and answer a later submission
+//     with a conflict carrying the response it already has, rather than a bare
+//     error — the caller usually wants to reflect the resolved state, not
+//     retry.
+//   - Non-terminal (partial): the interaction is still in progress. A partial
+//     response is a resumable draft and a later submission REPLACES it. A host
+//     that claims the envelope on a partial submission makes its own protocol
+//     unreachable: the interaction can never be completed, because the
+//     completing submission collides with the draft that preceded it.
+//
+// The legacy "cancelled" spelling is terminal, like the canonical spelling it
+// maps to. An unrecognized status is not terminal — an unknown state is not a
+// resolution, and treating it as one would discard a response.
+func (s ResponseStatus) IsTerminal() bool {
+	switch s.Canonical() {
+	case ResponseStatusSubmitted, ResponseStatusCanceled, ResponseStatusError:
+		return true
+	}
+	return false
 }
 
 // Handle is the optional handle returned with ack and async-ack responses.

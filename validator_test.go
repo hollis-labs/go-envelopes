@@ -186,3 +186,61 @@ func contains(haystack, needle string) bool {
 	}
 	return false
 }
+
+// TestResponseTypedChannels_rejectUnaddressableEntries covers the structural
+// checks on the typed return channels added for CW-20260910-0141. An answer
+// with no questionId or a decision with no itemId cannot be matched back to
+// what it answers, so it is rejected regardless of envelope type.
+func TestResponseTypedChannels_rejectUnaddressableEntries(t *testing.T) {
+	registry, err := LoadCore(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := func() *Response {
+		return &Response{
+			V: ProtocolVersion, EnvelopeID: "env-1",
+			Kind: ResponseKindAck, Status: ResponseStatusSubmitted,
+		}
+	}
+
+	valid := base()
+	valid.Answers = []Answer{{QuestionID: "q-0", Value: "yes"}}
+	valid.Decisions = []Decision{{ItemID: "i-0", Action: "defer"}}
+	if err := registry.ValidateResponse("approval-card", valid); err != nil {
+		t.Fatalf("well-formed typed channels rejected: %v", err)
+	}
+
+	for name, mutate := range map[string]func(*Response){
+		"answer without questionId":  func(r *Response) { r.Answers = []Answer{{Value: "x"}} },
+		"decision without itemId":    func(r *Response) { r.Decisions = []Decision{{Action: "defer"}} },
+		"decision without an action": func(r *Response) { r.Decisions = []Decision{{ItemID: "i-0"}} },
+	} {
+		t.Run(name, func(t *testing.T) {
+			resp := base()
+			mutate(resp)
+			if err := registry.ValidateResponse("approval-card", resp); err == nil {
+				t.Fatal("validator accepted an unaddressable entry")
+			}
+		})
+	}
+}
+
+// TestResponseStatus_IsTerminal pins the claim/conflict rule. A host reads
+// terminality to decide what a second submission means; getting `partial`
+// wrong here is what makes a resumable interaction unreachable, because the
+// completing submission collides with the draft that preceded it.
+func TestResponseStatus_IsTerminal(t *testing.T) {
+	for status, want := range map[ResponseStatus]bool{
+		ResponseStatusSubmitted:    true,
+		ResponseStatusCanceled:     true,
+		ResponseStatusError:        true,
+		ResponseStatusCancelled:    true,  // legacy spelling resolves like canonical
+		ResponseStatusPartial:      false, // a draft, and replaceable
+		ResponseStatus("handling"): false,
+		ResponseStatus("nonsense"): false,
+	} {
+		if got := status.IsTerminal(); got != want {
+			t.Errorf("ResponseStatus(%q).IsTerminal() = %v, want %v", status, got, want)
+		}
+	}
+}

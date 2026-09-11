@@ -88,6 +88,24 @@ func (r *Registry) ValidateResponse(envelopeType string, resp *Response) error {
 		return fmt.Errorf("%w: %q", ErrUnknownType, envelopeType)
 	}
 
+	// Typed return channels are structural, not per-type: an Answer without a
+	// questionId and a Decision without an itemId are unaddressable by any
+	// consumer, whatever the envelope type. Checked for every kind, because a
+	// host may carry answers alongside an ack as easily as alongside data.
+	for i, answer := range resp.Answers {
+		if answer.QuestionID == "" {
+			return fmt.Errorf("envelopes: response answers[%d] has empty questionId", i)
+		}
+	}
+	for i, decision := range resp.Decisions {
+		if decision.ItemID == "" {
+			return fmt.Errorf("envelopes: response decisions[%d] has empty itemId", i)
+		}
+		if decision.Action == "" {
+			return fmt.Errorf("envelopes: response decisions[%d] has empty action", i)
+		}
+	}
+
 	switch resp.Kind {
 	case ResponseKindData:
 		if spec.PayloadSchema != nil {

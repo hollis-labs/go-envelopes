@@ -125,6 +125,61 @@ Hosts decide how those facts are worded or presented to users.
 The raw validator error remains available through `errors.As` for compatibility,
 but may contain rejected payload values and should not be logged.
 
+## Responses: typed channels and the conflict contract
+
+An interactive envelope can return up to three different things, and `Response`
+keeps them apart instead of collapsing them into one untyped blob:
+
+| Field | Carries |
+|---|---|
+| `Payload` | freeform data for the envelope type |
+| `Answers` | replies to questions — `questionId`, `value`, optional `acceptedSuggestion` and `note` |
+| `Decisions` | dispositions of items — `itemId`, `action`, optional `note` and `meta` |
+
+`Answer.AcceptedSuggestion` is a pointer so an explicit rejection is
+distinguishable from an envelope that offered no suggestion. `Decision.Action`
+is an open string: the set of dispositions belongs to the interaction, not to
+the wire format.
+
+### What a second submission means
+
+`ResponseStatus.IsTerminal()` is the contract. It is the one piece of response
+semantics hosts were previously each reinventing, and getting it wrong in one
+specific way makes a protocol unreachable:
+
+| Status | Terminal | A later submission should |
+|---|---|---|
+| `submitted`, `canceled`, `error` | yes | be refused as a conflict **carrying the response already recorded** — the caller usually wants to reflect the resolved state, not retry |
+| `partial` | no | be accepted, **replacing** the previous draft |
+
+```go
+if response.Status.IsTerminal() {
+    // record immutably; a second submission is a conflict
+} else {
+    // a resumable draft; the next submission replaces it
+}
+```
+
+**A host that claims an envelope on a `partial` submission breaks its own
+protocol.** The interaction can then never be completed, because the completing
+submission collides with the draft that preceded it — `partial` becomes a state
+you can enter and never leave. If a host has one "record the response" path, it
+needs to branch on `IsTerminal` before taking it.
+
+An unrecognized status is not terminal: an unknown state is not a resolution,
+and treating it as one discards a response. Internal lifecycle markers a host
+uses while dispatching (a "handling" claim, a "failed" outcome) belong on the
+host's own instance record, not in the response status.
+
+### The transport is not part of the contract
+
+This library specifies the payload, the status semantics and the conflict
+semantics. It does not specify a route, an auth scheme or a storage model. A
+card that hardcodes `POST /api/envelopes/{id}/respond` has made the same
+category of mistake as a manifest that names a component path: it has put a
+host's local arrangement inside a shared contract. Keep the schema and the
+validation portable; keep the fetch client in the host.
+
 ## Cancellation vocabulary
 
 The canonical wire spelling is US English: `"canceled"` for response and

@@ -6,6 +6,52 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Typed return channels on `Response`: `Answers []Answer` and
+  `Decisions []Decision`.** An interactive envelope returns up to three
+  different things — freeform data, answers to questions, dispositions of items
+  — and collapsing them into one untyped `Payload` loses the distinction where a
+  consumer needs it. Both are optional and additive; a response that carries
+  only `Payload` behaves exactly as before.
+
+  `Answer.AcceptedSuggestion` is a `*bool` so that an explicit rejection is
+  distinguishable from an envelope that offered no suggestion. `Decision.Action`
+  is an open string on purpose: the set of dispositions belongs to the
+  interaction, and enumerating them here would make the wire format the
+  bottleneck for every new one.
+
+  `Registry.ValidateResponse` now rejects an answer with an empty `questionId`
+  and a decision with an empty `itemId` or `action`, for every response kind.
+  These are structural, not per-type — such an entry is unaddressable by any
+  consumer whatever the envelope type.
+
+- **`ResponseStatus.IsTerminal()` — the conflict contract.** Terminal statuses
+  (`submitted`, `canceled`, `error`, and the legacy `cancelled` spelling) close
+  the interaction; `partial` does not. An unrecognized status is not terminal,
+  because an unknown state is not a resolution and treating it as one discards a
+  response.
+
+  This is the piece of response semantics that was previously left for every
+  host to reinvent, and it has one specific failure mode worth naming: **a host
+  that claims an envelope on a `partial` submission makes its own protocol
+  unreachable.** The interaction can never be completed, because the completing
+  submission collides with the draft that preceded it — `partial` becomes a
+  state you can enter and never leave. Hosts with a single "record the response"
+  path should branch on `IsTerminal` before taking it: record terminal responses
+  immutably and answer a later submission with a conflict carrying the recorded
+  response, and let a `partial` be replaced by the submission that follows it.
+
+  The distinction matches the draft-versus-resolution split Tangent's retention
+  ADR arrived at independently, where a participant draft and an immutable
+  participant resolution are separate custody subjects.
+
+  Internal lifecycle markers a host sets while dispatching (a "handling" claim,
+  a "failed" outcome) are host instance state and deliberately not response
+  statuses.
+
+- README section documenting the typed channels, the conflict contract, and why
+  the transport route is not part of it.
+
 ### Removed
 - **BREAKING: the core manifest no longer carries `component`, `export` or
   `props`.** All three were removed from `manifest/envelopes.yaml` (17 of its 18
