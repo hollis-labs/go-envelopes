@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	envelopes "github.com/hollis-labs/go-envelopes"
 	"github.com/hollis-labs/go-envelopes/codegen"
@@ -40,24 +41,80 @@ func TestTypeScript_generatesDataTypesAndImportMetadata(t *testing.T) {
 		`status: "pending" | "in_progress" | "completed" | "failed" | "canceled" | "cancelled";`,
 		"export interface EnvelopeDataMap",
 		"export const ENVELOPE_IMPORT_METADATA",
-		`"info-card": { component: "components/chat/envelopes/primitives/InfoCard", export: "InfoCard", source: "core"`,
 	} {
 		if !strings.Contains(output, required) {
 			t.Fatalf("generated output missing %q", required)
 		}
 	}
+	// A core-only catalog emits an EMPTY import map. The generator used to
+	// write 17 entries of host filesystem paths here — under a comment
+	// reading "Host-neutral component import metadata" — which is the
+	// coupling CW-20260910-0113 removed. The declaration itself stays: a
+	// plugin may still supply import metadata for its own host, and the
+	// consumer-facing shape should not change shape based on whether any
+	// plugin happens to be registered.
+	if strings.Contains(output, "components/chat/envelopes") {
+		t.Fatal("core catalog emitted host component paths into the TypeScript output")
+	}
+	if !strings.Contains(output, "export const ENVELOPE_IMPORT_METADATA = {\n} as const") {
+		t.Fatalf("core-only import metadata map is not empty:\n%s",
+			output[strings.Index(output, "export const ENVELOPE_IMPORT_METADATA"):])
+	}
 	if !strings.Contains(output, `Use "canceled" for new payloads.`) {
 		t.Fatal("generated session-task status does not document the canonical spelling")
 	}
-	if strings.Contains(output, "KbResultData") {
-		t.Fatal("unregistered compatibility schema emitted without opt-in")
-	}
-
+	// The core catalog ships no unregistered schema as of CW-20260910-0114, so
+	// opting in changes nothing for it. The opt-in mechanism itself is covered
+	// by TestTypeScript_compatibilitySchemasRequireOptIn against a synthetic
+	// manifest; this asserts the shipped catalog has nothing to opt into.
 	withCompatibility, err := codegen.TypeScript(catalog, codegen.TypeScriptOptions{IncludeUnregisteredSchemas: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(withCompatibility), "export interface KbResultData") {
+	if string(withCompatibility) != output {
+		t.Fatal("core catalog still ships an unregistered compatibility schema")
+	}
+}
+
+// TestTypeScript_compatibilitySchemasRequireOptIn covers the
+// IncludeUnregisteredSchemas contract without depending on a stray schema
+// shipping in the module forever. It previously asserted against KbResultData,
+// one of the five app-specific schemas CW-20260910-0114 removed.
+func TestTypeScript_compatibilitySchemasRequireOptIn(t *testing.T) {
+	manifestFS := fstest.MapFS{
+		"manifest/envelopes.yaml": &fstest.MapFile{
+			Data: []byte("core:\n  - type: fixture-card\n"),
+		},
+		"manifest/schemas/fixture-card.schema.json": &fstest.MapFile{
+			Data: []byte(`{"$id":"fixture-card.schema.json","title":"Fixture Card","type":"object","properties":{"a":{"type":"string"}}}`),
+		},
+		"manifest/schemas/fixture-compat.schema.json": &fstest.MapFile{
+			Data: []byte(`{"$id":"fixture-compat.schema.json","title":"Fixture Compat","type":"object","properties":{"b":{"type":"string"}}}`),
+		},
+	}
+	registry, err := envelopes.LoadCore(context.Background(), envelopes.WithManifestFS(manifestFS))
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := registry.ExportCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	withoutOptIn, err := codegen.TypeScript(catalog, codegen.TypeScriptOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(withoutOptIn), "FixtureCompatData") {
+		t.Fatal("unregistered compatibility schema emitted without opt-in")
+	}
+	if !strings.Contains(string(withoutOptIn), "FixtureCardData") {
+		t.Fatal("registered type missing from generated output")
+	}
+	withOptIn, err := codegen.TypeScript(catalog, codegen.TypeScriptOptions{IncludeUnregisteredSchemas: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(withOptIn), "FixtureCompatData") {
 		t.Fatal("opted-in compatibility schema was not generated")
 	}
 }

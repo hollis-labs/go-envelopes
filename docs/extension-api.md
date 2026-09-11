@@ -106,6 +106,12 @@ library does not assign rendering semantics to it; hosts can ignore it or
 surface it through their own UI tools. `TypeSpec.UIMetadata` remains available
 as the v0.3 compatibility view.
 
+This is a **plugin-only** surface as of v0.5.0. Core envelope types leave
+`Import` empty: the core manifest dropped `component`/`export`/`props` because a
+wire contract library may not assert appearance. A plugin supplying a component
+path for its own host is a different thing — that is the host's own decision,
+declared through the plugin's `ui` map — and it remains supported.
+
 `RegisterType` establishes an ownership boundary by encoding `UIMetadata` and
 `TypeScript.Import.Extra` as JSON and decoding them into canonical Go shapes:
 objects become `map[string]any`, arrays become `[]any`, numbers become

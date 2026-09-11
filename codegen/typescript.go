@@ -20,9 +20,17 @@ type TypeScriptOptions struct {
 	IncludeUnregisteredSchemas bool
 }
 
-// TypeScript generates deterministic, host-neutral data types plus structured
-// component import metadata. A host remains responsible for choosing its own
-// loader (React.lazy, a static import, another UI framework, and so on).
+// TypeScript generates deterministic, host-neutral data types plus any
+// structured component import metadata the catalog carries.
+//
+// The two outputs have different portability, and conflating them is what let
+// a map of one host's filesystem paths ship under a "host-neutral" label until
+// v0.5.0. The data types are derived from JSON Schema alone and are portable.
+// ENVELOPE_IMPORT_METADATA is not: its entries name paths and symbols inside a
+// particular host's source tree. Core types contribute none of it — only
+// plugins, for their own host. A host remains responsible for choosing its own
+// loader (React.lazy, a static import, another UI framework, and so on), but
+// note that choosing a loader does not make a foreign path resolvable.
 func TypeScript(catalog envelopes.Catalog, options TypeScriptOptions) ([]byte, error) {
 	registered := make(map[string]envelopes.CatalogType, len(catalog.Types))
 	for _, envelopeType := range catalog.Types {
@@ -129,7 +137,14 @@ func TypeScript(catalog envelopes.Catalog, options TypeScriptOptions) ([]byte, e
 
 	out.WriteString("export interface EnvelopeImportMetadata {\n")
 	out.WriteString("  component: string;\n  export: string;\n  props?: string;\n  source: \"core\" | \"plugin\";\n  pluginId?: string;\n  extra?: Record<string, unknown>;\n}\n\n")
-	out.WriteString("/** Host-neutral component import metadata from the registry. */\n")
+	// Deliberately NOT labelled "host-neutral". The data types above are;
+	// this map is not, and never was. Anything in it is a path and symbol
+	// inside some specific host's source tree, supplied by a plugin for that
+	// host. Core types contribute nothing here as of v0.5.0.
+	out.WriteString("/** Host-supplied component import metadata, contributed by plugins.\n")
+	out.WriteString(" *  Entries name paths inside a specific host's tree and are NOT portable.\n")
+	out.WriteString(" *  Core envelope types contribute no entries: the core manifest asserts\n")
+	out.WriteString(" *  wire identity only. Empty is the expected core-only result. */\n")
 	out.WriteString("export const ENVELOPE_IMPORT_METADATA = {\n")
 	for _, envelopeType := range catalog.Types {
 		metadata := envelopeType.TypeScript.Import

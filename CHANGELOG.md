@@ -6,6 +6,116 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Removed
+- **BREAKING: the core manifest no longer carries `component`, `export` or
+  `props`.** All three were removed from `manifest/envelopes.yaml` (17 of its 18
+  entries carried them), from the manifest metaschema, and from
+  `ManifestEntry`. Core envelope types now assert wire identity only.
+
+  **Why deletion rather than repointing.** The `component` field named a
+  filesystem path inside one specific host application's source tree — e.g.
+  `components/chat/envelopes/primitives/InfoCard`. That is an appearance claim,
+  and a wire contract library has no authority to make one: it owns type
+  identity, payload schema, validation and compatibility, and nothing about how
+  a payload looks. The paths were also simply wrong for every consumer other
+  than the one host they were extracted from, since they are root-relative with
+  no package root and resolve only against that host's tree. `export` named a
+  React symbol at that path and `props` encoded which prop name that host's
+  renderer feeds the payload to — the same claim in different words, with
+  `props` being the one that encoded actual renderer behaviour.
+
+  Repointing the field at a published design-system export was considered and
+  rejected. It recreates the identical coupling one layer over, inside a library
+  that must never assert appearance, and it would establish a second appearance
+  authority beside the design system — leaving two token sets to reconcile
+  later. The replacement for this field is a **binding** artifact, and a binding
+  belongs outside this library.
+
+  **Nothing was migrated because nothing consumed it.** The field's only
+  machine-readable output was `ENVELOPE_IMPORT_METADATA` in the generated
+  TypeScript, which has no import site anywhere in the portfolio — including in
+  the host whose paths it encoded, which generates its UI types with its own
+  script reading the schema directory directly.
+
+  **The removal is enforced by name, not by omission.** The three properties are
+  gone from `manifest/envelopes.schema.json` and `additionalProperties` is
+  `false`, so a manifest reasserting any of them fails validation rather than
+  being quietly accepted the next time a sweep regenerates the catalog.
+  `TestParseManifest_carriesNoPresentationMetadata` and
+  `TestManifest_metaschemaRejectsPresentationFieldsByName` pin both halves.
+
+  The pre-deletion mapping for all 17 types is recorded in the CW-20260910-0113
+  handoff table, including the non-1:1 row where `approval-card` and
+  `subagent-spawn-approval` shared one component with two different prop-feeding
+  paths.
+
+  **Migration.** Consumers reading `ManifestEntry.Component`/`.Export`/`.Props`
+  must drop those reads; the fields no longer exist. Consumers reading
+  `TypeSpec.TypeScript.Import` or `TypeSpec.UIMetadata` keep compiling — both
+  types are retained — but core types now leave them empty, so a core-only
+  catalog generates an empty `ENVELOPE_IMPORT_METADATA`. Hosts that need a
+  type-to-component mapping should own that mapping themselves.
+
+- **Five app-specific JSON Schemas removed from the shared `manifest/schemas/`
+  directory**, each named here so its absence is discoverable rather than
+  mysterious:
+
+  | Schema | Title | Disposition |
+  |---|---|---|
+  | `giphy-modal.schema.json` | Giphy Modal | dead — feature cut from its only host |
+  | `kb-result.schema.json` | KB Result | dead — feature cut from its only host |
+  | `resolution-capture.schema.json` | Resolution Capture | dead — feature cut from its only host |
+  | `ticket-confirmation.schema.json` | Ticket Confirmation | dead — feature cut from its only host |
+  | `ticket-form.schema.json` | Ticket Form | dead — feature cut from its only host |
+
+  All five shipped in the shared schema directory with **no corresponding entry
+  in `manifest/envelopes.yaml`**. They were seeded out of one application's
+  source tree before the catalog was tightened and were never declared as core
+  types, so `LoadCore` never registered them: they were reachable only as
+  unregistered compatibility resources on the exported catalog.
+
+  **Each was verified dead before deletion, not assumed.** The originating
+  application cut every one of them in its own plugin-removal work — its
+  `OrphanTypes` list is now an empty slice and its `RegisterOrphans` call is a
+  no-op; the `kb-result` envelope builder was removed alongside the rest. No
+  application in the portfolio emits, registers, or renders any of the five, and
+  none of the five generated TypeScript data types has an import site anywhere.
+  A schema with a live consumer would have been routed to its owning
+  application rather than deleted.
+
+  Every schema the module ships now corresponds to a declared core type — 18
+  types, 18 schemas, set difference empty in both directions. That invariant is
+  pinned by `TestExportCatalog_shipsNoUnregisteredSchemas`, so the next stray is
+  a test failure rather than a discovery two years later.
+
+  This resolves the "seed manifest carries five orphan schemas" known limitation
+  recorded under 0.4.0.
+
+  **Migration.** `-include-unregistered-schemas` is now a no-op against the core
+  catalog, since there is nothing unregistered to include. The flag and the
+  mechanism remain supported. Consumers that resolved any of the five schemas
+  through the exported catalog will no longer find them; those types are not
+  part of this library's contract and their owning application should ship them
+  itself.
+
+### Changed
+- `codegen.TypeScript` no longer labels `ENVELOPE_IMPORT_METADATA` as
+  "host-neutral". That claim was true of the generated data types, which derive
+  from JSON Schema alone, and false of the import map, whose every entry names a
+  path inside a particular host's tree. The emitted comment now says so, and the
+  package documentation distinguishes the two outputs.
+- Unknown manifest entry keys now reach `ManifestEntry.Extra` more completely:
+  `component`, `export` and `props` are no longer stripped during decode, so a
+  reintroduced key surfaces in `Extra` (and fails the metaschema) instead of
+  vanishing silently.
+
+### Retained deliberately
+- `ImportMetadata`, `TypeSpec.UIMetadata` and the plugin-facing
+  `PluginManifestEntry.UIMetadata` (`ui:`) all remain. A plugin declaring a
+  component path for its own host is that host's decision, not this library
+  asserting appearance, and `UIMetadata` is still the v0.3 compatibility view.
+  Only the library's own core manifest stopped making the claim.
+
 ## [0.4.0] - 2026-09-04
 
 ### Added

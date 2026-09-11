@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/fstest"
 )
 
 func TestExportCatalog_isDeterministicAndSelfIdentifying(t *testing.T) {
@@ -64,8 +65,15 @@ func TestExportCatalog_isDeterministicAndSelfIdentifying(t *testing.T) {
 	if infoCard == nil {
 		t.Fatal("catalog omitted info-card")
 	}
-	if infoCard.TypeScript.DataType != "InfoCardData" || infoCard.TypeScript.Import.Export != "InfoCard" {
+	// DataType is derived from the wire type name and stays asserted. The
+	// companion assertion here used to be Import.Export == "InfoCard", which
+	// pinned a host component symbol into the catalog contract; CW-20260910-0113
+	// removed the field, so the assertion inverts rather than disappears.
+	if infoCard.TypeScript.DataType != "InfoCardData" {
 		t.Fatalf("info-card TypeScript metadata = %#v", infoCard.TypeScript)
+	}
+	if infoCard.TypeScript.Import.Component != "" || infoCard.TypeScript.Import.Export != "" {
+		t.Fatalf("core catalog carries a host component binding: %#v", infoCard.TypeScript.Import)
 	}
 	if infoCard.Annotations.Custom["default_render_target"] != "bottom_chat_drawer" {
 		t.Fatalf("info-card annotations = %#v", infoCard.Annotations)
@@ -119,7 +127,71 @@ func TestModuleIdentityFromBuildInfo(t *testing.T) {
 	}
 }
 
+// TestExportCatalog_includesUnregisteredCompatibilitySchemas exercises the
+// compatibility-schema path with a synthetic manifest FS.
+//
+// It used to assert against `kb-result`, one of five app-specific schemas that
+// shipped in manifest/schemas/ without a YAML entry. CW-20260910-0114 deleted
+// all five, and the module now ships no unregistered schema at all — every
+// schema file maps to a declared core type. Pinning this behaviour to a
+// shipped stray meant the test quietly depended on the boundary leak it was
+// unrelated to, and would have blocked its removal. The mechanism is still
+// supported and still tested; it just no longer needs a stray to demonstrate it.
 func TestExportCatalog_includesUnregisteredCompatibilitySchemas(t *testing.T) {
+	manifestFS := fstest.MapFS{
+		"manifest/envelopes.yaml": &fstest.MapFile{
+			Data: []byte("core:\n  - type: fixture-card\n"),
+		},
+		"manifest/schemas/fixture-card.schema.json": &fstest.MapFile{
+			Data: []byte(`{"$id":"fixture-card.schema.json","title":"Fixture Card","type":"object"}`),
+		},
+		// Shipped, but absent from the YAML manifest above.
+		"manifest/schemas/fixture-compat.schema.json": &fstest.MapFile{
+			Data: []byte(`{"$id":"fixture-compat.schema.json","title":"Fixture Compat","type":"object"}`),
+		},
+	}
+	registry, err := LoadCore(context.Background(), WithManifestFS(manifestFS))
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := registry.ExportCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sawCompat, sawRegistered bool
+	for _, resource := range catalog.Schemas {
+		switch resource.Type {
+		case "fixture-compat":
+			if resource.Registered {
+				t.Fatal("fixture-compat compatibility schema unexpectedly registered")
+			}
+			if len(resource.Document) == 0 {
+				t.Fatal("fixture-compat compatibility schema document empty")
+			}
+			sawCompat = true
+		case "fixture-card":
+			if !resource.Registered {
+				t.Fatal("fixture-card is declared in the manifest but exported as unregistered")
+			}
+			sawRegistered = true
+		}
+	}
+	if !sawCompat {
+		t.Fatal("fixture-compat compatibility schema not exported")
+	}
+	if !sawRegistered {
+		t.Fatal("fixture-card registered schema not exported")
+	}
+}
+
+// TestExportCatalog_shipsNoUnregisteredSchemas is the CW-20260910-0114
+// regression gate. Five app-specific schemas (giphy-modal, kb-result,
+// resolution-capture, ticket-confirmation, ticket-form) shipped in the shared
+// manifest/schemas/ directory with no entry in envelopes.yaml. Every schema
+// this module ships must now correspond to a declared core type: a schema with
+// no type is either app-specific leakage or a type someone forgot to declare,
+// and both are defects in a library other applications treat as a contract.
+func TestExportCatalog_shipsNoUnregisteredSchemas(t *testing.T) {
 	registry, err := LoadCore(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -129,17 +201,11 @@ func TestExportCatalog_includesUnregisteredCompatibilitySchemas(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, resource := range catalog.Schemas {
-		if resource.Type == "kb-result" {
-			if resource.Registered {
-				t.Fatal("kb-result compatibility schema unexpectedly registered")
-			}
-			if len(resource.Document) == 0 {
-				t.Fatal("kb-result compatibility schema document empty")
-			}
-			return
+		if !resource.Registered {
+			t.Errorf("module ships schema %q with no declared type in manifest/envelopes.yaml; "+
+				"declare the type or remove the schema", resource.Type)
 		}
 	}
-	t.Fatal("kb-result compatibility schema not exported")
 }
 
 func TestExportCatalog_pluginRegistrationUsesSameSurface(t *testing.T) {

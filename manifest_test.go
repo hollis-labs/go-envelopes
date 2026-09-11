@@ -19,22 +19,84 @@ func TestParseManifest_canonical(t *testing.T) {
 		t.Fatal("core list is empty; manifest seed not extracted")
 	}
 
-	// Spot-check entries: at least one type with a component (info-card)
-	// and at least one without (session-task — backend-only).
-	var seenWithComponent, seenWithoutComponent bool
+	// Spot-check that known core types are still declared. The manifest is
+	// the wire contract; losing an entry silently drops a type from
+	// validation.
+	declared := make(map[string]bool, len(m.Core))
 	for _, e := range m.Core {
-		if e.Type == "info-card" && e.Component != "" && e.Export == "InfoCard" {
-			seenWithComponent = true
-		}
-		if e.Type == "session-task" && e.Component == "" {
-			seenWithoutComponent = true
+		declared[e.Type] = true
+	}
+	for _, want := range []string{"info-card", "session-task", "approval-card"} {
+		if !declared[want] {
+			t.Errorf("core manifest is missing envelope type %q", want)
 		}
 	}
-	if !seenWithComponent {
-		t.Error("expected info-card entry with component=...InfoCard, export=InfoCard")
+}
+
+// TestParseManifest_carriesNoPresentationMetadata is the regression gate for
+// CW-20260910-0113. The core manifest asserted `component`, `export` and
+// `props` on 17 of its 18 entries, each naming a path, symbol or prop
+// convention inside one host's source tree — an appearance claim a wire
+// contract library has no authority to make. They were removed in v0.5.0.
+//
+// This asserts the absence at the YAML level rather than the struct level:
+// the fields are gone from ManifestEntry, so a reintroduced `component:` key
+// now lands in Extra instead of failing to compile. Extra is exactly where a
+// regenerating sweep would put it back unnoticed, so that is where to look.
+func TestParseManifest_carriesNoPresentationMetadata(t *testing.T) {
+	data, err := fs.ReadFile(embeddedManifest, "manifest/envelopes.yaml")
+	if err != nil {
+		t.Fatalf("read embedded manifest: %v", err)
 	}
-	if !seenWithoutComponent {
-		t.Error("expected session-task entry with no component (backend-only)")
+	m, err := ParseManifest(data)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	for _, e := range m.Core {
+		for _, banned := range []string{"component", "export", "props"} {
+			if _, found := e.Extra[banned]; found {
+				t.Errorf("core type %q reintroduced presentation field %q; "+
+					"component bindings belong to the host, not the wire manifest", e.Type, banned)
+			}
+		}
+		if metadata := uiMetadataForEntry(e); metadata != nil {
+			for _, banned := range []string{"component", "export", "props"} {
+				if _, found := metadata[banned]; found {
+					t.Errorf("core type %q exports presentation metadata %q", e.Type, banned)
+				}
+			}
+		}
+	}
+}
+
+// TestManifest_metaschemaRejectsPresentationFieldsByName pins the second half
+// of the fence. Deleting the values while leaving the metaschema permissive
+// would let the next sweep re-add them silently; `additionalProperties: false`
+// plus the removed property definitions means they are refused BY NAME.
+func TestManifest_metaschemaRejectsPresentationFieldsByName(t *testing.T) {
+	raw, err := fs.ReadFile(embeddedManifest, "manifest/envelopes.schema.json")
+	if err != nil {
+		t.Fatalf("read metaschema: %v", err)
+	}
+	document, err := NewSchemaDocument("envelopes-v1.schema.json", raw)
+	if err != nil {
+		t.Fatalf("parse metaschema: %v", err)
+	}
+	compiled, err := compileSchemaDocument(document)
+	if err != nil {
+		t.Fatalf("compile metaschema: %v", err)
+	}
+	for _, banned := range []string{"component", "export", "props"} {
+		instance := map[string]any{
+			"core": []any{map[string]any{"type": "demo-card", banned: "components/chat/envelopes/DemoCard"}},
+		}
+		if err := compiled.Validate(instance); err == nil {
+			t.Errorf("metaschema accepted presentation field %q; it must be rejected by name", banned)
+		}
+	}
+	valid := map[string]any{"core": []any{map[string]any{"type": "demo-card"}}}
+	if err := compiled.Validate(valid); err != nil {
+		t.Fatalf("metaschema rejected a wire-only entry: %v", err)
 	}
 }
 

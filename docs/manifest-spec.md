@@ -20,17 +20,11 @@ manifest/
 ```yaml
 core:
   - type: info-card
-    component: components/chat/envelopes/primitives/InfoCard
-    export: InfoCard
     description: A simple informational card with variant styling.
 
   - type: approval-card
-    component: components/chat/envelopes/ApprovalCard
-    export: ApprovalCard
-    props: approval
 
   - type: session-task
-    # backend-only — no React component
 ```
 
 ### Per-entry fields
@@ -39,17 +33,36 @@ core:
 |---|---|---|
 | `type` | yes | Kebab-case identifier; matches the `type` field on the wire. |
 | `description` | no | Human/agent-facing description; surfaced through `TypeSpec.Description`. |
-| `component` | no (paired with `export`) | Host component path, preserved in `TypeSpec.TypeScript.Import.Component` and the exported catalog. |
-| `export` | no (paired with `component`) | Named export from the component module, preserved in `TypeSpec.TypeScript.Import.Export` and the exported catalog. |
-| `props` | no | Host-defined prop discriminator (e.g. `approval`, `proposal`), preserved in `TypeSpec.TypeScript.Import.Props` and the exported catalog. |
 
-The Go manifest loader reads and preserves every field above. It maps
-`component`, `export`, and `props` into the typed
-`TypeSpec.TypeScript.Import` metadata used by `Registry.ExportCatalog` and the
-module-owned `codegen.TypeScript` generator; `TypeSpec.UIMetadata` remains a
-compatibility view for v0.3 consumers. Runtime validation does not use these
-fields, and the library does not assign presentation or component-loading
-semantics to them. Hosts make those policy decisions.
+That is the whole list. `additionalProperties` is `false`, so anything else is
+rejected.
+
+### Removed in v0.5.0: `component`, `export`, `props`
+
+Through v0.4.x an entry could also carry `component` (a host component path),
+`export` (its named export) and `props` (a host prop discriminator). All three
+were removed.
+
+The reason is the ownership line this library sits on. A wire contract owns type
+identity, payload schema, validation and compatibility. It does not own
+appearance. `component` asserted a filesystem path inside one specific host
+application's source tree — a claim go-envelopes has no authority to make, and
+one that was wrong for every other consumer. `export` and `props` were the same
+assertion in different words: `props` encoded which prop name one host's renderer
+feeds the payload to.
+
+They are refused **by name** rather than by omission: the properties are gone
+from `envelopes.schema.json` and `additionalProperties` is `false`, so a manifest
+that reasserts one fails validation instead of being quietly accepted by a
+regenerating sweep.
+
+Which component renders a type is a **binding** concern, and a binding artifact
+belongs outside this library. Putting it back here would create a second
+appearance authority alongside the design system.
+
+Plugins are unaffected: `PluginManifestEntry` still accepts a `ui` map, because a
+plugin declaring a component for its own host is that host's decision rather than
+this library's assertion.
 
 ### Adding a core type
 
@@ -114,11 +127,15 @@ with core manifests.
 ## TypeScript parity
 
 `codegen.TypeScript` reads the exported catalog built from the same YAML + JSON
-Schemas as runtime validation. No Go-only schema fork exists. The known
-`component`/`export`/`props` keys are available on
-`TypeSpec.TypeScript.Import`; unknown entry keys are preserved in
-`ImportMetadata.Extra` and the generator catalog. This lets metadata evolve
-without teaching every consumer how to locate and re-parse the YAML.
+Schemas as runtime validation. No Go-only schema fork exists. Unknown entry keys
+are preserved in `ImportMetadata.Extra` and the generator catalog, which lets
+metadata evolve without teaching every consumer how to locate and re-parse the
+YAML.
+
+`TypeSpec.TypeScript.Import` still exists and is still populated for
+plugin-registered types from their `ui` map. Core types leave it empty, so a
+core-only catalog generates an empty `ENVELOPE_IMPORT_METADATA`. That is the
+expected result, not a generation failure.
 
 The canonical cancellation status is `"canceled"`. The `session-task` schema
 also recognizes legacy `"cancelled"` through v0.4.x so old persisted payloads

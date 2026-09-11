@@ -89,20 +89,37 @@ func TestLoadCore_typesWithSchemaCompile(t *testing.T) {
 	}
 }
 
-func TestLoadCore_uiMetadataPreserved(t *testing.T) {
+// TestLoadCore_exposesNoPresentationMetadata replaces the former
+// TestLoadCore_uiMetadataPreserved, which asserted that `info-card` resolved to
+// components/chat/envelopes/primitives/InfoCard. That assertion pinned the
+// violation CW-20260910-0113 removed: a wire contract library naming a path
+// inside one host's source tree. Core types now expose no component binding
+// through any surface, and this asserts it for every one of them rather than
+// for the single type the old test spot-checked.
+func TestLoadCore_exposesNoPresentationMetadata(t *testing.T) {
 	r, err := LoadCore(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	spec, ok := r.Lookup("info-card")
-	if !ok {
-		t.Fatal()
-	}
-	if got, want := spec.UIMetadata["component"], "components/chat/envelopes/primitives/InfoCard"; got != want {
-		t.Errorf("UIMetadata[component] = %v, want %v", got, want)
-	}
-	if got, want := spec.UIMetadata["export"], "InfoCard"; got != want {
-		t.Errorf("UIMetadata[export] = %v, want %v", got, want)
+	for _, spec := range r.All() {
+		for _, banned := range []string{"component", "export", "props"} {
+			if got, found := spec.UIMetadata[banned]; found {
+				t.Errorf("core type %q exposes UIMetadata[%s] = %v; component bindings belong to the host",
+					spec.Name, banned, got)
+			}
+		}
+		if spec.TypeScript.Import.Component != "" {
+			t.Errorf("core type %q exposes TypeScript.Import.Component = %q",
+				spec.Name, spec.TypeScript.Import.Component)
+		}
+		if spec.TypeScript.Import.Export != "" {
+			t.Errorf("core type %q exposes TypeScript.Import.Export = %q",
+				spec.Name, spec.TypeScript.Import.Export)
+		}
+		if spec.TypeScript.Import.Props != "" {
+			t.Errorf("core type %q exposes TypeScript.Import.Props = %q",
+				spec.Name, spec.TypeScript.Import.Props)
+		}
 	}
 }
 

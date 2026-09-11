@@ -83,9 +83,11 @@ go run github.com/hollis-labs/go-envelopes/cmd/envelopes-export \
 
 Both outputs state the selected module version, protocol version, and manifest
 digest. The catalog contains the embedded YAML manifest, manifest schema,
-per-type JSON Schemas, annotations, and component import metadata. The
-TypeScript output is host-neutral: it emits data types and import metadata but
-does not prescribe React, a loader, or presentation wording.
+per-type JSON Schemas, annotations, and any plugin-supplied component import
+metadata. The TypeScript data types are host-neutral: they derive from the JSON
+Schemas alone and prescribe no React, loader, or presentation wording. Core
+envelope types carry no component binding at all — the manifest asserts wire
+identity only, so `ENVELOPE_IMPORT_METADATA` is empty for a core-only catalog.
 
 Go-based generators and plugin hosts can use the same surface directly:
 
@@ -163,7 +165,7 @@ in v0.5.0. New payloads should not depend on the v0.4.x exception.
 ## Related libraries
 
 `go-envelopes` is part of the Hollis Labs `go-*` portfolio. This module owns
-both the Go registry/catalog API and the host-neutral TypeScript generator.
+both the Go registry/catalog API and the TypeScript data-type generator.
 Go and TypeScript hosts therefore consume the same embedded YAML manifest and
 JSON Schemas from the module version selected by the host's `go.mod`; there is
 no separate TypeScript companion package to install or synchronize.

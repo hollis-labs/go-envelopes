@@ -23,6 +23,13 @@ Use `-output -` (the default) for stdout. `-format catalog` is the default.
 schema resources that ship in the module but are intentionally absent from the
 live registry. New consumers should normally omit that flag.
 
+**As of v0.5.0 the module ships none**, so the flag is currently a no-op: every
+schema in `manifest/schemas/` corresponds to a type declared in
+`envelopes.yaml`. Five app-specific schemas (`giphy-modal`, `kb-result`,
+`resolution-capture`, `ticket-confirmation`, `ticket-form`) previously shipped
+without a declaration; they were removed in v0.5.0. The flag and the mechanism
+remain supported for a future deliberate compatibility schema.
+
 For a hermetic tool invocation independent of a consumer `go.mod`, suffix the
 package with an exact released version:
 
@@ -90,7 +97,9 @@ The TypeScript generator emits:
 - local `$defs` as collision-resistant, type-prefixed declarations;
 - `EnvelopeType` and `EnvelopeDataMap`;
 - `ENVELOPE_IMPORT_METADATA` with component path, named export, props hint,
-  source, and plugin id.
+  source, and plugin id — **populated by plugins only**. Core envelope types
+  contribute no entries, so a core-only catalog emits an empty map. That is the
+  expected result: the core manifest asserts wire identity and no appearance.
 
 Boolean schemas are honored at the root and in recursively generated
 properties, items, combinators, and `$defs`. The `not: true` applicator is
@@ -98,9 +107,18 @@ recognized as an always-failing schema and emits `never`; `not: false` adds no
 constraint.
 
 It does not emit framework imports or component-loader code. A React host can
-turn the metadata into `lazy()` imports; another host can use an entirely
-different loader. Host-specific component overrides and presentation wording
-belong in that host.
+turn plugin-supplied metadata into `lazy()` imports; another host can use an
+entirely different loader. Host-specific component overrides and presentation
+wording belong in that host.
+
+**"Host-neutral" applies to the data types, not to the import map.** The data
+interfaces, `EnvelopeType` and `EnvelopeDataMap` derive from JSON Schema alone
+and are portable to any consumer. `ENVELOPE_IMPORT_METADATA` is not portable by
+construction: every entry names a path and symbol inside one particular host's
+source tree, and choosing your own loader does not make a foreign path resolve.
+Through v0.4.x the core manifest filled this map with 17 entries pointing into a
+single host application, under a comment reading "host-neutral". Both the entries
+and the comment were removed in v0.5.0.
 
 ## Migrating from a sibling checkout
 

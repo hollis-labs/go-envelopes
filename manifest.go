@@ -28,12 +28,17 @@ func EmbeddedFS() fs.FS { return embeddedManifest }
 // Field names mirror the canonical YAML; unknown fields are preserved in
 // Extra so downstream tooling can read non-Go metadata without changes
 // here when the manifest grows.
+//
+// The core manifest asserts WIRE IDENTITY ONLY. This struct carried
+// Component, Export and Props through v0.4.x; they were removed in v0.5.0
+// because a contract library naming a path inside a host's source tree is
+// an appearance claim it has no authority to make. A manifest that
+// reasserts them now fails the metaschema by name, and — because they are
+// no longer stripped in UnmarshalYAML — lands in Extra where it is visible
+// rather than silently dropped. Component bindings belong to the host.
 type ManifestEntry struct {
 	Type        string         `yaml:"type"`
-	Component   string         `yaml:"component,omitempty"`
-	Export      string         `yaml:"export,omitempty"`
 	Description string         `yaml:"description,omitempty"`
-	Props       string         `yaml:"props,omitempty"`
 	Extra       map[string]any `yaml:"-"`
 }
 
@@ -50,7 +55,7 @@ func (e *ManifestEntry) UnmarshalYAML(value *yaml.Node) error {
 	if err := value.Decode(&all); err != nil {
 		return err
 	}
-	for _, key := range []string{"type", "component", "export", "description", "props"} {
+	for _, key := range []string{"type", "description"} {
 		delete(all, key)
 	}
 	if len(all) > 0 {
@@ -76,23 +81,18 @@ func ParseManifest(data []byte) (*Manifest, error) {
 	return &m, nil
 }
 
-// uiMetadataForEntry returns the entry's host component import metadata as the
+// uiMetadataForEntry returns the entry's generator metadata as the
 // v0.3-compatible map the registry stores alongside its typed TypeScript view.
-// It is empty when the entry has no import metadata.
+// It is nil when the entry carries none.
+//
+// Core entries contribute no component, export or props: since v0.5.0 the
+// manifest asserts wire identity only. What remains here is whatever
+// unrecognised build-time metadata an entry carried in Extra, which flows
+// through unchanged. Plugins still supply their own import metadata via
+// PluginManifestEntry.UIMetadata — a plugin declaring a component for its
+// own host is the host's call, not this library asserting appearance.
 func uiMetadataForEntry(e ManifestEntry) map[string]any {
 	out := cloneStringAnyMap(e.Extra)
-	if out == nil {
-		out = map[string]any{}
-	}
-	if e.Component != "" {
-		out["component"] = e.Component
-	}
-	if e.Export != "" {
-		out["export"] = e.Export
-	}
-	if e.Props != "" {
-		out["props"] = e.Props
-	}
 	if len(out) == 0 {
 		return nil
 	}
@@ -100,12 +100,7 @@ func uiMetadataForEntry(e ManifestEntry) map[string]any {
 }
 
 func importMetadataForEntry(e ManifestEntry) ImportMetadata {
-	return ImportMetadata{
-		Component: e.Component,
-		Export:    e.Export,
-		Props:     e.Props,
-		Extra:     cloneStringAnyMap(e.Extra),
-	}
+	return ImportMetadata{Extra: cloneStringAnyMap(e.Extra)}
 }
 
 // compileSchemaFromFS reads, parses, and compiles a JSON Schema from the
