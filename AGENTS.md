@@ -29,8 +29,11 @@ make lint
 make vuln
 ```
 
-`make lint` and `make vuln` skip with a message when `staticcheck` or
-`govulncheck` is absent, so a clean run does not prove they executed.
+`make lint` and `make vuln` report three outcomes and only one of them exits 0:
+the tool ran and found nothing. A tool that is absent says `DID NOT RUN` and
+fails; findings say so and fail. Read the message — `make` reports its own
+exit 2 for both failure cases, so the message is the discriminator, not the
+code.
 
 ## Boundaries
 
