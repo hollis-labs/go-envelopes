@@ -1,6 +1,6 @@
 module github.com/hollis-labs/go-envelopes
 
-go 1.26.1
+go 1.26.6
 
 require (
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
