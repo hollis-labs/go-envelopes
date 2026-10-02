@@ -647,3 +647,99 @@ func TestBackendSemanticValidationRequiredAndErrorSanitized(t *testing.T) {
 	h, _ = adminhttp.NewHandler(configuration(t, d))
 	check(t, request(h, "GET", "/admin/settings/prefs", "", ""), 503, admin.BackendUnavailable)
 }
+
+func TestManifestRevisionPrecedesUnknownGroupKeys(t *testing.T) {
+	for _, operation := range []string{"validate", "update", "reset"} {
+		for _, tt := range []struct {
+			name, revision, key string
+			status              int
+			code                string
+		}{
+			{"stale unknown", "old", "unknown", 409, admin.ManifestChanged},
+			{"current unknown", "r1", "unknown", 400, admin.MalformedInput},
+			{"stale valid", "old", "url", 409, admin.ManifestChanged},
+		} {
+			t.Run(operation+"/"+tt.name, func(t *testing.T) {
+				s := newStore()
+				before := copyState(s.state)
+				body := fmt.Sprintf(`{"revision":%q,"set":{%q:"https://next.test"},"unset":[]}`, tt.revision, tt.key)
+				if operation == "reset" {
+					body = fmt.Sprintf(`{"revision":%q,"keys":[%q]}`, tt.revision, tt.key)
+				}
+				check(t, request(newHandler(t, s), "POST", "/admin/settings/prefs/"+operation, body, `"v1"`), tt.status, tt.code)
+				if s.previews != 0 || s.stages != 0 || s.commits != 0 || !reflect.DeepEqual(before, s.state) {
+					t.Fatal("rejected command resolved or persisted")
+				}
+			})
+		}
+	}
+}
+
+// Simulate another writer committing after Read and before Preview resolves.
+// The helper's validate command itself must never persist its proposed change.
+type interleavedWriter struct {
+	*store
+	written        bool
+	changeRevision bool
+}
+
+func (s *interleavedWriter) Preview(ctx context.Context, changes admin.Changes) (admin.State, error) {
+	s.mu.Lock()
+	if !s.written {
+		s.written = true
+		s.state.Version = "external-v2"
+		if s.changeRevision {
+			s.state.Revision = "r2"
+		}
+		v := s.state.Values["token"]
+		v.Value = scalar("synthetic-private SELECT token FROM secrets /private/credentials")
+		s.state.Values["token"] = v
+	}
+	s.mu.Unlock()
+	return s.store.Preview(ctx, changes)
+}
+
+func TestValidateInterleavedWriteUnavailableAndRetry(t *testing.T) {
+	s := &interleavedWriter{store: newStore()}
+	d := declaration(s.store)
+	d.Groups[0].Backend = s
+	h, err := adminhttp.NewHandler(configuration(t, d))
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := request(h, "POST", "/admin/settings/prefs/validate", change, "")
+	check(t, w, 503, admin.BackendUnavailable)
+	want := `{"error":{"code":"backend_unavailable","message":"The admin backend is unavailable."}}`
+	if w.Body.String() != want || w.Header().Get("ETag") != "" {
+		t.Fatal("unavailable response disclosed values/details or a completed snapshot", w.Body.String())
+	}
+	if !s.written || s.state.Version != "external-v2" || s.state.Values["url"].Value.Value() != "https://initial.test" || s.reads != 1 || s.previews != 1 || s.transactions != 0 || s.stages != 0 || s.commits != 0 || s.restarts != 0 {
+		t.Fatal("interleaved validation persisted, applied, or retried")
+	}
+	// An explicit retry observes the new stable base and completes without writes.
+	before := copyState(s.state)
+	w = request(h, "POST", "/admin/settings/prefs/validate", change, "")
+	check(t, w, 200, "")
+	var validation admin.Validation
+	if err := json.Unmarshal(w.Body.Bytes(), &validation); err != nil || !validation.Valid {
+		t.Fatal("stable retry did not complete validation", w.Body.String(), err)
+	}
+	if s.reads != 2 || s.previews != 2 || s.transactions != 0 || s.stages != 0 || s.commits != 0 || s.restarts != 0 || !reflect.DeepEqual(before, s.state) {
+		t.Fatal("retry changed persistent state")
+	}
+}
+
+func TestValidateInterleavedDeclarationRevisionChanged(t *testing.T) {
+	s := &interleavedWriter{store: newStore(), changeRevision: true}
+	d := declaration(s.store)
+	d.Groups[0].Backend = s
+	h, err := adminhttp.NewHandler(configuration(t, d))
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := request(h, "POST", "/admin/settings/prefs/validate", change, "")
+	check(t, w, 409, admin.ManifestChanged)
+	if s.reads != 1 || s.previews != 1 || s.state.Revision != "r2" || s.state.Values["url"].Value.Value() != "https://initial.test" || s.transactions != 0 || s.stages != 0 || s.commits != 0 || s.restarts != 0 || w.Header().Get("ETag") != "" {
+		t.Fatal("declaration race completed or persisted validation")
+	}
+}

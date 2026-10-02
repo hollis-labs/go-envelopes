@@ -38,11 +38,11 @@ func (h *handler) command(w http.ResponseWriter, r *http.Request, g admin.Group,
 			return err
 		}
 		current = detached(current)
-		if f := g.CheckChanges(current, command.Changes); f != nil {
-			return f
-		}
 		if command.Revision != revision || current.Revision != revision {
 			return failure(admin.ManifestChanged)
+		}
+		if f := g.CheckChanges(current, command.Changes); f != nil {
+			return f
 		}
 		tag, err = current.ETag()
 		if err != nil {
@@ -114,12 +114,12 @@ func (h *handler) validate(w http.ResponseWriter, r *http.Request, g admin.Group
 		writeFailure(w, err)
 		return
 	}
-	if f := g.CheckChanges(current, command.Changes); f != nil {
-		writeFailure(w, f)
-		return
-	}
 	if command.Revision != revision || current.Revision != revision {
 		writeFailure(w, failure(admin.ManifestChanged))
+		return
+	}
+	if f := g.CheckChanges(current, command.Changes); f != nil {
+		writeFailure(w, f)
 		return
 	}
 	candidate, err := g.Backend.Preview(r.Context(), command.Changes)

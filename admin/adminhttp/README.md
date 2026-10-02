@@ -49,11 +49,13 @@ Empty text, false and zero remain typed values. No sentinel or coercion.
 
 Validate/update require exactly `{revision, set, unset}`; reset requires exactly
 `{revision, keys}` and translates to set:{} / unset:keys. Both containers are
-required even when empty. Group keys/types and current effective permissions
-are checked before declaration/value preconditions. Authorization and command
-protection precede body decoding; malformed commands precede revision checking;
-revision precedes ETag checking. A well-formed request with both stale revisions
-and stale values returns 409, not 412. Permission failures return 403.
+required even when empty. Authorization and command protection precede body
+decoding; malformed JSON/command structure precedes revision checking. Declaration
+revision is checked before group keys/types and current effective permissions,
+then ETag is checked. A decoded command with a stale declaration revision returns
+409 even if it names an unknown group key; with a current revision that key
+returns 400. Both stale revisions and stale values return 409, not 412.
+Permission failures return 403.
 
 Update/reset require exactly one concrete strong read ETag in If-Match:
 missing/empty is 428, wildcard/multiple/malformed is 400, weak/nonmatching is 412.
