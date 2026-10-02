@@ -4,222 +4,90 @@ All notable changes to `go-envelopes` are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/) and the package
 adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
-
-### Changed
-
-- Legacy `"cancelled"` / `"user-cancelled"` compatibility and deprecated Go names
-  are retained in v0.5.x. Removal is not scheduled and will be announced first.
-  This supersedes the removal schedule recorded under v0.4.0 below and in the
-  published v0.4.0 release notes, which remain historical records.
-
-- Raised the module's `go` directive to `1.26.6` (Go floor across the portfolio); CI now uses `go-version-file: go.mod`.
+## [0.5.0] - 2026-10-02
 
 ### Added
-- Optional `admin/adminhttp` host-mounted HTTP binding with explicit auth/context/
-  command protection policies, strict bounded JSON decoding, strong read ETags,
-  validate/update/reset preconditions and staged atomic transaction orchestration.
-  No storage, listener, retry, apply/restart, app adoption or release is supplied.
 
-- Independent `admin` contract v1 core: app-scoped declarations, derived flat
-  scalar schemas/endpoints, private resolved candidates and redacted snapshots,
-  complete-value validation, command/observation/error types, and explicit host
-  atomic transaction interfaces. The envelope catalog is unchanged. The optional
-  HTTP binding is described above; app adoption remains a separate follow-up.
-  No lifecycle/storage implementation or release is included.
-
-- **`TypeSupport`, `Registry.CheckSupport` and `Registry.SupportedTypes` — a
-  consumer declares which envelope types it handles, BY NAME.** Every
-  registered type must be claimed: supported, or excluded with a reason. A type
-  that is neither comes back as `*SupportGap.Unclaimed`, and `CheckSupport`
-  returns an error.
-
-  Excluding a type by leaving it out of a list is indistinguishable from never
-  having heard of it, so a deliberately-rejected type returns silently the next
-  time a consumer regenerates against a newer catalog. A named exclusion
-  carrying a reason survives regeneration and makes adopting a new type a
-  decision someone writes down. Run from a consumer test, a library upgrade that
-  adds a type becomes a failing build rather than a silent import.
-
-  The motivating case: `subagent-spawn-approval` and `chat-loop-terminated` are
-  boundary violations for a host that is neither an agent launcher nor a session
-  manager, and must stay excludable across catalog regenerations.
-
-  **No catalog partition ships, and that is a finding rather than an omission.**
-  The wire-kind versus pure-composition split this mechanism was expected to
-  expose does not exist in this catalog:
-
-  - No core schema references another type's schema. Every `$ref` is a local
-    `#/$defs` pointer, so no type is structurally nested inside another.
-  - Types believed to be composition-only are not. `list-card` and
-    `confirmation-card` are emitted standalone as whole interactions — that is
-    what the retirements of `todo-list` and `plan-review` did, and what their
-    `data_source` pointers exist to support.
-
-  All core types are wire kinds. The distinction that *does* exist is **emission
-  authority** — whether an agent, a host decision flow, or the runtime may emit
-  a given type — which classifies the current 18 as 10 agent-emittable, 3 host
-  decision-flow, 4 runtime-emitted and 1 backend-only. That axis is host policy,
-  not wire: the host that owns the emission path owns the answer, and one host's
-  allow-list is not another's. Encoding it here would repeat the mistake of the
-  `component` field removed in this same release — a shared contract asserting a
-  single host's local arrangement. So the library supplies the mechanism for a
-  consumer to state and verify its own policy, and asserts none of its own.
-
-- **Typed return channels on `Response`: `Answers []Answer` and
-  `Decisions []Decision`.** An interactive envelope returns up to three
-  different things — freeform data, answers to questions, dispositions of items
-  — and collapsing them into one untyped `Payload` loses the distinction where a
-  consumer needs it. Both are optional and additive; a response that carries
-  only `Payload` behaves exactly as before.
-
-  `Answer.AcceptedSuggestion` is a `*bool` so that an explicit rejection is
-  distinguishable from an envelope that offered no suggestion. `Decision.Action`
-  is an open string on purpose: the set of dispositions belongs to the
-  interaction, and enumerating them here would make the wire format the
-  bottleneck for every new one.
-
-  `Registry.ValidateResponse` now rejects an answer with an empty `questionId`
-  and a decision with an empty `itemId` or `action`, for every response kind.
-  These are structural, not per-type — such an entry is unaddressable by any
-  consumer whatever the envelope type.
-
-- **`ResponseStatus.IsTerminal()` — the conflict contract.** Terminal statuses
-  (`submitted`, `canceled`, `error`, and the legacy `cancelled` spelling) close
-  the interaction; `partial` does not. An unrecognized status is not terminal,
-  because an unknown state is not a resolution and treating it as one discards a
-  response.
-
-  This is the piece of response semantics that was previously left for every
-  host to reinvent, and it has one specific failure mode worth naming: **a host
-  that claims an envelope on a `partial` submission makes its own protocol
-  unreachable.** The interaction can never be completed, because the completing
-  submission collides with the draft that preceded it — `partial` becomes a
-  state you can enter and never leave. Hosts with a single "record the response"
-  path should branch on `IsTerminal` before taking it: record terminal responses
-  immutably and answer a later submission with a conflict carrying the recorded
-  response, and let a `partial` be replaced by the submission that follows it.
-
-  The distinction matches the draft-versus-resolution split Tangent's retention
-  ADR arrived at independently, where a participant draft and an immutable
-  participant resolution are separate custody subjects.
-
-  Internal lifecycle markers a host sets while dispatching (a "handling" claim,
-  a "failed" outcome) are host instance state and deliberately not response
-  statuses.
-
-- README section documenting the typed channels, the conflict contract, and why
-  the transport route is not part of it.
-
-### Removed
-- **BREAKING: the core manifest no longer carries `component`, `export` or
-  `props`.** All three were removed from `manifest/envelopes.yaml` (17 of its 18
-  entries carried them), from the manifest metaschema, and from
-  `ManifestEntry`. Core envelope types now assert wire identity only.
-
-  **Why deletion rather than repointing.** The `component` field named a
-  filesystem path inside one specific host application's source tree — e.g.
-  `components/chat/envelopes/primitives/InfoCard`. That is an appearance claim,
-  and a wire contract library has no authority to make one: it owns type
-  identity, payload schema, validation and compatibility, and nothing about how
-  a payload looks. The paths were also simply wrong for every consumer other
-  than the one host they were extracted from, since they are root-relative with
-  no package root and resolve only against that host's tree. `export` named a
-  React symbol at that path and `props` encoded which prop name that host's
-  renderer feeds the payload to — the same claim in different words, with
-  `props` being the one that encoded actual renderer behaviour.
-
-  Repointing the field at a published design-system export was considered and
-  rejected. It recreates the identical coupling one layer over, inside a library
-  that must never assert appearance, and it would establish a second appearance
-  authority beside the design system — leaving two token sets to reconcile
-  later. The replacement for this field is a **binding** artifact, and a binding
-  belongs outside this library.
-
-  **Nothing was migrated because nothing consumed it.** The field's only
-  machine-readable output was `ENVELOPE_IMPORT_METADATA` in the generated
-  TypeScript, which has no import site anywhere in the portfolio — including in
-  the host whose paths it encoded, which generates its UI types with its own
-  script reading the schema directory directly.
-
-  **The removal is enforced by name, not by omission.** The three properties are
-  gone from `manifest/envelopes.schema.json` and `additionalProperties` is
-  `false`, so a manifest reasserting any of them fails validation rather than
-  being quietly accepted the next time a sweep regenerates the catalog.
-  `TestParseManifest_carriesNoPresentationMetadata` and
-  `TestManifest_metaschemaRejectsPresentationFieldsByName` pin both halves.
-
-  The pre-deletion mapping for all 17 types is recorded in the CW-20260910-0113
-  handoff table, including the non-1:1 row where `approval-card` and
-  `subagent-spawn-approval` shared one component with two different prop-feeding
-  paths.
-
-  **Migration.** Consumers reading `ManifestEntry.Component`/`.Export`/`.Props`
-  must drop those reads; the fields no longer exist. Consumers reading
-  `TypeSpec.TypeScript.Import` or `TypeSpec.UIMetadata` keep compiling — both
-  types are retained — but core types now leave them empty, so a core-only
-  catalog generates an empty `ENVELOPE_IMPORT_METADATA`. Hosts that need a
-  type-to-component mapping should own that mapping themselves.
-
-- **Five app-specific JSON Schemas removed from the shared `manifest/schemas/`
-  directory**, each named here so its absence is discoverable rather than
-  mysterious:
-
-  | Schema | Title | Disposition |
-  |---|---|---|
-  | `giphy-modal.schema.json` | Giphy Modal | dead — feature cut from its only host |
-  | `kb-result.schema.json` | KB Result | dead — feature cut from its only host |
-  | `resolution-capture.schema.json` | Resolution Capture | dead — feature cut from its only host |
-  | `ticket-confirmation.schema.json` | Ticket Confirmation | dead — feature cut from its only host |
-  | `ticket-form.schema.json` | Ticket Form | dead — feature cut from its only host |
-
-  All five shipped in the shared schema directory with **no corresponding entry
-  in `manifest/envelopes.yaml`**. They were seeded out of one application's
-  source tree before the catalog was tightened and were never declared as core
-  types, so `LoadCore` never registered them: they were reachable only as
-  unregistered compatibility resources on the exported catalog.
-
-  **Each was verified dead before deletion, not assumed.** The originating
-  application cut every one of them in its own plugin-removal work — its
-  `OrphanTypes` list is now an empty slice and its `RegisterOrphans` call is a
-  no-op; the `kb-result` envelope builder was removed alongside the rest. No
-  application in the portfolio emits, registers, or renders any of the five, and
-  none of the five generated TypeScript data types has an import site anywhere.
-  A schema with a live consumer would have been routed to its owning
-  application rather than deleted.
-
-  Every schema the module ships now corresponds to a declared core type — 18
-  types, 18 schemas, set difference empty in both directions. That invariant is
-  pinned by `TestExportCatalog_shipsNoUnregisteredSchemas`, so the next stray is
-  a test failure rather than a discovery two years later.
-
-  This resolves the "seed manifest carries five orphan schemas" known limitation
-  recorded under 0.4.0.
-
-  **Migration.** `-include-unregistered-schemas` is now a no-op against the core
-  catalog, since there is nothing unregistered to include. The flag and the
-  mechanism remain supported. Consumers that resolved any of the five schemas
-  through the exported catalog will no longer find them; those types are not
-  part of this library's contract and their owning application should ship them
-  itself.
+- Typed return channels on `Response`: optional `Answers []Answer` and
+  `Decisions []Decision` alongside `Payload`, both with `omitempty`.
+  `ValidateResponse` checks question IDs, item IDs and decision actions for every
+  response kind. `ResponseStatus.IsTerminal` supplies the terminal-versus-draft
+  distinction; the documented conflict contract leaves transport/storage to the
+  host. ([8827ce4](https://github.com/hollis-labs/go-envelopes/commit/8827ce41ec220719cb59732f35c35e12308dc327))
+- `TypeSupport`, `Registry.CheckSupport` and `Registry.SupportedTypes` let hosts
+  declare supported types and named exclusions. `SupportGap` reports unclaimed,
+  unknown or conflicting names. No catalog partition or host emission policy is
+  imposed. ([91d9ea3](https://github.com/hollis-labs/go-envelopes/commit/91d9ea34e2b214cc99fc7d3fb4ebd5a3305b7ad5))
+- Independent `admin` contract v1: app-scoped declarations, flat scalar settings
+  and semantic validation, redacted snapshots, health/stat observations, and
+  host-owned resolution/transaction contracts. No HTTP, storage or lifecycle
+  implementation in the core.
+  ([1fabfa3 / PR #4](https://github.com/hollis-labs/go-envelopes/commit/1fabfa3a783cacf326359ea38eb1a9efe412839a))
+- Optional `admin/adminhttp` host-mounted handler: caller-filtered discovery,
+  declared reads/observations and validate/update/reset commands, required host
+  authorization/command protection, strict command decoding, strong ETag
+  preconditions and staged atomic transaction orchestration. No listener,
+  automatic retry, live apply or restart.
+  ([59c1506 / PR #5](https://github.com/hollis-labs/go-envelopes/commit/59c150641cfab728f74621098c506279652d84e2))
 
 ### Changed
-- `codegen.TypeScript` no longer labels `ENVELOPE_IMPORT_METADATA` as
-  "host-neutral". That claim was true of the generated data types, which derive
-  from JSON Schema alone, and false of the import map, whose every entry names a
-  path inside a particular host's tree. The emitted comment now says so, and the
-  package documentation distinguishes the two outputs.
-- Unknown manifest entry keys now reach `ManifestEntry.Extra` more completely:
-  `component`, `export` and `props` are no longer stripped during decode, so a
-  reintroduced key surfaces in `Extra` (and fails the metaschema) instead of
-  vanishing silently.
 
-### Retained deliberately
-- `ImportMetadata`, `TypeSpec.UIMetadata` and the plugin-facing
-  `PluginManifestEntry.UIMetadata` (`ui:`) all remain. A plugin declaring a
-  component path for its own host is that host's decision, not this library
-  asserting appearance, and `UIMetadata` is still the v0.3 compatibility view.
-  Only the library's own core manifest stopped making the claim.
+- **Breaking:** the core manifest asserts wire identity only. `component`,
+  `export` and `props` are removed from the YAML, metaschema and public
+  `ManifestEntry` fields. The metaschema refuses those keys; unknown decoded
+  keys remain visible in `Extra`. Core catalog component hints are empty and
+  core-only `ENVELOPE_IMPORT_METADATA` is empty. Generated data types remain
+  schema-derived; import metadata is explicitly host-specific.
+  ([f1593e4](https://github.com/hollis-labs/go-envelopes/commit/f1593e4e7a357dc728f17d5379e1e2d98e97d31e))
+- Module Go directive raised from `1.26.1` to `1.26.6`.
+  ([e507597](https://github.com/hollis-labs/go-envelopes/commit/e5075970a913bf3f50692bc0444053e3a90566ca))
+- Legacy `"cancelled"` / `"user-cancelled"` compatibility and deprecated Go names
+  are retained in v0.5.x. Removal is not scheduled and will be announced first;
+  new output remains canonical US spelling. This supersedes the removal
+  schedule in the historical v0.4.0 entries and published release notes.
+  Live docs/comments and the session-task status description are corrected;
+  the description change moves catalog identity/generated documentation without
+  changing its enum or validation.
+  ([b6ec75d / PR #7](https://github.com/hollis-labs/go-envelopes/commit/b6ec75d8211c56757699ed5fe645b4eb318510e7))
+
+### Fixed
+
+- Admin declaration revision is checked before group keys/types and effective
+  permissions, then ETag. After structural decoding, stale revision plus an
+  unknown key returns 409 `manifest_changed`; the unknown key with current
+  revision returns 400. Both stale revision and stale ETag return 409; current
+  revision plus stale ETag remains 412 `value_conflict`. Applies to validate
+  and transactional update/reset; authorization and malformed-body checks
+  remain earlier.
+  ([83386cd / PR #6](https://github.com/hollis-labs/go-envelopes/commit/83386cd78c2ac5a1f5dbcf91508951b10cd3611e))
+
+### Removed
+
+- Unregistered compatibility schema resources `giphy-modal.schema.json`,
+  `kb-result.schema.json`, `resolution-capture.schema.json`,
+  `ticket-confirmation.schema.json` and `ticket-form.schema.json`. They had no
+  core manifest entries and were never registered by `LoadCore`.
+  `IncludeUnregisteredSchemas` and its command flag remain supported, but the
+  core catalog has no unregistered schema resources to include.
+  ([f1593e4](https://github.com/hollis-labs/go-envelopes/commit/f1593e4e7a357dc728f17d5379e1e2d98e97d31e))
+
+### Migration
+
+- Replace removed `ManifestEntry` field reads and own renderer bindings in the
+  host; regenerate and review catalog/TypeScript output. `ImportMetadata`,
+  `TypeSpec.TypeScript.Import`, `TypeSpec.UIMetadata` and plugin `ui:` metadata
+  remain available. Stop resolving the removed schema resources.
+  ([f1593e4](https://github.com/hollis-labs/go-envelopes/commit/f1593e4e7a357dc728f17d5379e1e2d98e97d31e))
+- `Response.answers` and `.decisions` are optional additions, but Go reflection
+  can expand a public JSON schema even when old payload bytes are unchanged.
+  Tangent's session history output reflects those fields and its schema freeze
+  requires an accepted ADR before refreshing the digest. Inspect reflected
+  contracts as well as JSON payloads when upgrading.
+  ([8827ce4](https://github.com/hollis-labs/go-envelopes/commit/8827ce41ec220719cb59732f35c35e12308dc327);
+  [consumer evidence, Tangent #76](https://github.com/hollis-labs/tangent/pull/76))
+- Module version, `Envelope.V` and `admin.ContractVersion` are independent.
+  `ProtocolVersion` remains 1; the breaking manifest change requires the v0
+  minor bump, not a wire-version bump. See [v0.5.0 release notes](docs/releases/v0.5.0.md).
 
 ## [0.4.0] - 2026-09-04
 
