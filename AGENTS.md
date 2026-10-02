@@ -3,12 +3,17 @@
 The shared primitive for the Envelope UI Protocol — a wire format for typed,
 host-rendered payloads that agents send to host applications. It owns the
 manifest-driven type registry, the JSON-Schema validator, the runtime plugin
-extension API, and the build-time catalog and TypeScript generator. It is
-transport-agnostic (no MCP, no SSE) and stores nothing; both are host concerns.
+extension API, and the build-time catalog and TypeScript generator. The root
+envelope packages remain transport-agnostic (no MCP, no SSE) and store nothing. The module also owns the independent admin contract in
+`admin`; its optional `admin/adminhttp` binding is the only package permitted
+to import `net/http`. Storage, authn/z, resolution and lifecycle remain host
+concerns. The HTTP binding is a separate follow-up to the core package.
 
 ## Start Here
 
 - `README.md` covers the quickstart and the build-time generation commands.
+- `admin/README.md` covers admin declarations, private/public values, validation
+  and the atomic host adapter contract.
 - `manifest/envelopes.yaml` is the source of truth for core types;
   `manifest/envelopes.schema.json` constrains it.
 - `docs/manifest-spec.md`, `docs/extension-api.md` and `docs/generation.md`
@@ -35,7 +40,11 @@ make vuln
 ## Boundaries
 
 The wire-format version (`Envelope.V`) is independent of the library version.
-Do not bump one because the other moved.
+Do not bump one because the other moved. `admin.ContractVersion` is likewise
+independent of both module version and `Envelope.V`. Root envelope packages
+must not import `admin`; only `admin/adminhttp` may import `net/http`. Admin
+declarations are unrelated to the envelope type catalog: do not register them
+in `manifest/envelopes.yaml` or change the catalog for admin work.
 
 `manifest/envelopes.yaml` is the source of truth; the Go types, catalog and
 TypeScript output are all derived from it. Edit the manifest and regenerate —

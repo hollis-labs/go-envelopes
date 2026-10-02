@@ -8,9 +8,16 @@ runtime registration of additional envelope types. The same module also owns
 the build-time catalog and TypeScript generator, so consumers do not need a
 sibling checkout of this repository.
 
-It is transport-agnostic. It does not bind to MCP, SSE, or any other
-transport — those concerns live in the host application. It also does
-not persist envelope instances; storage is host-defined.
+The root envelope packages are transport-agnostic; MCP/SSE and envelope
+storage remain host concerns. The module also owns the independent admin
+contract in [`admin`](admin/README.md): app declarations, scalar settings
+validation and redacted snapshots. The planned optional `admin/adminhttp`
+binding is the only package permitted to import `net/http`; it is a separate
+follow-up and is not included yet. Root envelope packages must not import
+`admin`. Admin declarations are not entries in the envelope type catalog.
+Storage, authentication/authorization, resolution and lifecycle remain
+host-owned. `admin.ContractVersion` is independent of the module version
+and `Envelope.V`.
 
 ## Status
 
