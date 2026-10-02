@@ -11,9 +11,11 @@ sibling checkout of this repository.
 The root envelope packages are transport-agnostic; MCP/SSE and envelope
 storage remain host concerns. The module also owns the independent admin
 contract in [`admin`](admin/README.md): app declarations, scalar settings
-validation and redacted snapshots. The planned optional `admin/adminhttp`
-binding is the only package permitted to import `net/http`; it is a separate
-follow-up and is not included yet. Root envelope packages must not import
+validation and redacted snapshots. The optional
+[`admin/adminhttp`](admin/adminhttp/README.md) binding serves caller-specific
+declarations and guarded commands on a host-mounted handler. It is the only
+package permitted to import `net/http` and starts no server or lifecycle action.
+Root envelope packages must not import
 `admin`. Admin declarations are not entries in the envelope type catalog.
 Storage, authentication/authorization, resolution and lifecycle remain
 host-owned. `admin.ContractVersion` is independent of the module version
