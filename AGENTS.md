@@ -4,16 +4,20 @@ The shared primitive for the Envelope UI Protocol — a wire format for typed,
 host-rendered payloads that agents send to host applications. It owns the
 manifest-driven type registry, the JSON-Schema validator, the runtime plugin
 extension API, and the build-time catalog and TypeScript generator. The root
-envelope packages remain transport-agnostic (no MCP, no SSE) and store nothing. The module also owns the independent admin contract in
+envelope packages remain transport-agnostic (no MCP, no SSE) and store nothing.
+The module also owns the independent admin contract in
 `admin`; its optional `admin/adminhttp` binding is the only package permitted
 to import `net/http`. Storage, authn/z, resolution and lifecycle remain host
-concerns. The HTTP binding is a separate follow-up to the core package.
+concerns. `admin/adminhttp` binds caller-specific declarations and guarded
+commands to a host-mounted handler; it starts no server or lifecycle action.
 
 ## Start Here
 
 - `README.md` covers the quickstart and the build-time generation commands.
 - `admin/README.md` covers admin declarations, private/public values, validation
   and the atomic host adapter contract.
+- `admin/adminhttp/README.md` covers required host policies, HTTP commands,
+  preconditions and the stage-before-commit boundary.
 - `manifest/envelopes.yaml` is the source of truth for core types;
   `manifest/envelopes.schema.json` constrains it.
 - `docs/manifest-spec.md`, `docs/extension-api.md` and `docs/generation.md`

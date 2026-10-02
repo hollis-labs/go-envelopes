@@ -3,8 +3,8 @@
 `admin` builds the approved admin manifest v1 from a single app declaration.
 It is independent of the envelope type catalog and `Envelope.V`, and the
 contract version is independent of the module's release version. This package
-imports no HTTP code. The optional `admin/adminhttp` binding is a separate
-follow-up; there are no endpoints being served by this core package alone.
+imports no HTTP code. The optional [admin/adminhttp](adminhttp/README.md)
+binding supplies a host-mounted handler; the core alone serves no endpoints.
 
 Declare `Definition{App, Revision, BasePath, Groups, Health, Stats}`, then call
 `New`. A group's ordered `Fields` derive its schema properties, required list
@@ -84,7 +84,7 @@ complete candidate, stage, then call `Group.UpdateResult(ctx, before, staged)`
 BEFORE returning success from the transaction callback. Callback errors must
 roll back; success commits the whole group and its opaque version atomically.
 The staged view must match what is committed. Stage cannot call live apply or
-restart. The HTTP orchestration/precondition checks come in the follow-up.
+restart. The optional adminhttp binding supplies HTTP orchestration/precondition checks.
 
 All other app writers, enabled env/file/default layers and effective permission
 changes must participate in invalidation/concurrency control. A lib mutex
@@ -146,7 +146,7 @@ probe fan-out, polling timer, repair or storage is provided.
 
 `ErrorResponse` wraps `Failure` as `{error:{code,message,errors?}}`.
 `Failure.StatusCode()` covers 400/401/403/404/409/412/422/428/501/503 without
-importing HTTP. The upcoming binding will enforce authorization, well-formed
+importing HTTP. The optional adminhttp binding enforces authorization, well-formed
 command, revision, then ETag in that order. Validate completes with HTTP 200 for
 valid or invalid; mutation validation failure is 422. Unknown host failures
 must map to fixed sanitized 503 messages, not their raw error text.
