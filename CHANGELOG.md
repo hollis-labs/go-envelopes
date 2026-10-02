@@ -11,6 +11,13 @@ adheres to [Semantic Versioning](https://semver.org/).
 - Raised the module's `go` directive to `1.26.6` (Go floor across the portfolio); CI now uses `go-version-file: go.mod`.
 
 ### Added
+- Independent `admin` contract v1 core: app-scoped declarations, derived flat
+  scalar schemas/endpoints, private resolved candidates and redacted snapshots,
+  complete-value validation, command/observation/error types, and explicit host
+  atomic transaction interfaces. The envelope catalog is unchanged. HTTP
+  orchestration and app adoption are separate follow-ups; no lifecycle/storage
+  implementation or release is included.
+
 - **`TypeSupport`, `Registry.CheckSupport` and `Registry.SupportedTypes` — a
   consumer declares which envelope types it handles, BY NAME.** Every
   registered type must be claimed: supported, or excluded with a reason. A type
