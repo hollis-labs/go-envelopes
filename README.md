@@ -23,7 +23,7 @@ and `Envelope.V`.
 
 ## Status
 
-`v0.4.x` — pre-1.0. Public API may shift between minor versions; see
+`v0.5.x` — pre-1.0. Public API may shift between minor versions; see
 the CHANGELOG for breaking changes. The wire-format major version
 (`Envelope.V`) is independent of the library version.
 
@@ -234,7 +234,7 @@ The canonical wire spelling is US English: `"canceled"` for response and
 `session-task` statuses, and `"user-canceled"` for the protocol error code.
 Use `ResponseStatusCanceled` and `ErrorCodeUserCanceled` for new output.
 
-For a bounded migration window, v0.4.x continues to read the v0.2-era
+v0.5.x retains read compatibility for the v0.2-era
 `"cancelled"` status and `"user-cancelled"` error code. The deprecated
 `ResponseStatusCancelled` and `ErrorCodeUserCancelled` constants keep their
 historical values so existing emitters do not silently change wire behavior on
@@ -247,8 +247,9 @@ if response.Error != nil {
 }
 ```
 
-The compatibility spellings and deprecated Go names are scheduled for removal
-in v0.5.0. New payloads should not depend on the v0.4.x exception.
+The compatibility spellings and deprecated Go names are retained in v0.5.x.
+Removal is not scheduled and will be announced first. New output must use the
+canonical US spellings.
 
 ## Layout
 

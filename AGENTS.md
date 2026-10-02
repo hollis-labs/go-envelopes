@@ -59,8 +59,9 @@ protocol version, manifest digest), because consumers diff them across
 upgrades — `TestExportCatalog_isDeterministicAndSelfIdentifying`.
 
 Compatibility values are retained deliberately, not left behind. The legacy
-`cancelled` response status stays accepted through the v0.4.x window while not
-being canonical, and `UIMetadata` remains for v0.3 source compatibility.
+`cancelled` response status and `user-cancelled` error spelling are retained in
+v0.5.x while not being canonical. Removal is not scheduled and will be announced
+first. `UIMetadata` remains for v0.3 source compatibility.
 `TestCancellationVocabularyV04CompatibilityWindow` and
 `TestCancellationVocabularyReadsV02ResponseJSON` are what stop a cleanup from
 breaking existing hosts.

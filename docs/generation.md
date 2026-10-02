@@ -195,11 +195,11 @@ intended for ordinary logs and diagnostics.
 
 US English is canonical for new wire data: `"canceled"` and
 `"user-canceled"`. The `session-task` schema and generated TypeScript also
-include the legacy `"cancelled"` status during v0.4.x so persisted v0.2 data
+retain the legacy `"cancelled"` status in v0.5.x so persisted v0.2 data
 remains representable. The property description marks `"canceled"` as the
-value to emit. The legacy schema value is scheduled for removal in v0.5.0.
+value to emit. Removal is not scheduled and will be announced first.
 
-Go response values follow the same window. New code uses
+Go response values retain the same compatibility in v0.5.x. New code uses
 `ResponseStatusCanceled` and `ErrorCodeUserCanceled`; readers can call
 `ResponseStatus.Canonical` and `CanonicalErrorCode` before re-emitting legacy
 data. The British-spelled Go constants remain deprecated compatibility values,

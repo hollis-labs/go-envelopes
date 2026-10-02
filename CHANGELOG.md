@@ -8,6 +8,11 @@ adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Legacy `"cancelled"` / `"user-cancelled"` compatibility and deprecated Go names
+  are retained in v0.5.x. Removal is not scheduled and will be announced first.
+  This supersedes the removal schedule recorded under v0.4.0 below and in the
+  published v0.4.0 release notes, which remain historical records.
+
 - Raised the module's `go` directive to `1.26.6` (Go floor across the portfolio); CI now uses `go-version-file: go.mod`.
 
 ### Added
