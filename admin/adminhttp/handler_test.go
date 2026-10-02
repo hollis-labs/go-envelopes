@@ -679,7 +679,8 @@ func TestManifestRevisionPrecedesUnknownGroupKeys(t *testing.T) {
 // The helper's validate command itself must never persist its proposed change.
 type interleavedWriter struct {
 	*store
-	written bool
+	written        bool
+	changeRevision bool
 }
 
 func (s *interleavedWriter) Preview(ctx context.Context, changes admin.Changes) (admin.State, error) {
@@ -687,6 +688,9 @@ func (s *interleavedWriter) Preview(ctx context.Context, changes admin.Changes) 
 	if !s.written {
 		s.written = true
 		s.state.Version = "external-v2"
+		if s.changeRevision {
+			s.state.Revision = "r2"
+		}
 		v := s.state.Values["token"]
 		v.Value = scalar("synthetic-private SELECT token FROM secrets /private/credentials")
 		s.state.Values["token"] = v
@@ -722,5 +726,20 @@ func TestValidateInterleavedWriteUnavailableAndRetry(t *testing.T) {
 	}
 	if s.reads != 2 || s.previews != 2 || s.transactions != 0 || s.stages != 0 || s.commits != 0 || s.restarts != 0 || !reflect.DeepEqual(before, s.state) {
 		t.Fatal("retry changed persistent state")
+	}
+}
+
+func TestValidateInterleavedDeclarationRevisionChanged(t *testing.T) {
+	s := &interleavedWriter{store: newStore(), changeRevision: true}
+	d := declaration(s.store)
+	d.Groups[0].Backend = s
+	h, err := adminhttp.NewHandler(configuration(t, d))
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := request(h, "POST", "/admin/settings/prefs/validate", change, "")
+	check(t, w, 409, admin.ManifestChanged)
+	if s.reads != 1 || s.previews != 1 || s.state.Revision != "r2" || s.state.Values["url"].Value.Value() != "https://initial.test" || s.transactions != 0 || s.stages != 0 || s.commits != 0 || s.restarts != 0 || w.Header().Get("ETag") != "" {
+		t.Fatal("declaration race completed or persisted validation")
 	}
 }
