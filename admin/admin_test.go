@@ -494,3 +494,21 @@ func TestSourceOnlyChangeDoesNotRequireRestart(t *testing.T) {
 		t.Fatal("conservative restart rejected", err)
 	}
 }
+
+// Core key validation is revision-independent; transports must check the
+// command/declaration revision before calling CheckChanges.
+func TestCheckChangesDoesNotCheckDeclarationRevision(t *testing.T) {
+	g := group()
+	for _, revision := range []string{"r1", "old"} {
+		s := state()
+		s.Revision = revision
+		unknown := Changes{Set: map[string]Scalar{"unknown": text("x")}, Unset: []string{}}
+		if f := g.CheckChanges(s, unknown); f == nil || f.Code != MalformedInput || f.StatusCode() != 400 {
+			t.Fatal("core must reject unknown keys independently of revision", f)
+		}
+		valid := Changes{Set: map[string]Scalar{"url": text("https://next.test")}, Unset: []string{}}
+		if f := g.CheckChanges(s, valid); f != nil {
+			t.Fatal("core unexpectedly checks declaration revision", f)
+		}
+	}
+}

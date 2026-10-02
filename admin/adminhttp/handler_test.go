@@ -647,3 +647,30 @@ func TestBackendSemanticValidationRequiredAndErrorSanitized(t *testing.T) {
 	h, _ = adminhttp.NewHandler(configuration(t, d))
 	check(t, request(h, "GET", "/admin/settings/prefs", "", ""), 503, admin.BackendUnavailable)
 }
+
+func TestManifestRevisionPrecedesUnknownGroupKeys(t *testing.T) {
+	for _, operation := range []string{"validate", "update", "reset"} {
+		for _, tt := range []struct {
+			name, revision, key string
+			status              int
+			code                string
+		}{
+			{"stale unknown", "old", "unknown", 409, admin.ManifestChanged},
+			{"current unknown", "r1", "unknown", 400, admin.MalformedInput},
+			{"stale valid", "old", "url", 409, admin.ManifestChanged},
+		} {
+			t.Run(operation+"/"+tt.name, func(t *testing.T) {
+				s := newStore()
+				before := copyState(s.state)
+				body := fmt.Sprintf(`{"revision":%q,"set":{%q:"https://next.test"},"unset":[]}`, tt.revision, tt.key)
+				if operation == "reset" {
+					body = fmt.Sprintf(`{"revision":%q,"keys":[%q]}`, tt.revision, tt.key)
+				}
+				check(t, request(newHandler(t, s), "POST", "/admin/settings/prefs/"+operation, body, `"v1"`), tt.status, tt.code)
+				if s.previews != 0 || s.stages != 0 || s.commits != 0 || !reflect.DeepEqual(before, s.state) {
+					t.Fatal("rejected command resolved or persisted")
+				}
+			})
+		}
+	}
+}
