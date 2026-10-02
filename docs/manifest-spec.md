@@ -138,9 +138,9 @@ core-only catalog generates an empty `ENVELOPE_IMPORT_METADATA`. That is the
 expected result, not a generation failure.
 
 The canonical cancellation status is `"canceled"`. The `session-task` schema
-also recognizes legacy `"cancelled"` through v0.4.x so old persisted payloads
+also retains legacy `"cancelled"` in v0.5.x so old persisted payloads
 remain readable; its description and enum order identify `"canceled"` as the
-new-output value. The compatibility value is scheduled for removal in v0.5.0.
+new-output value. Removal is not scheduled and will be announced first.
 
 For module-resolved export and host-neutral TypeScript generation, see
 [`generation.md`](generation.md).

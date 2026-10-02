@@ -53,9 +53,10 @@ func (r *Registry) ValidateEnvelope(env *Envelope) error {
 //   - resp.V must equal ProtocolVersion.
 //   - resp.EnvelopeID must be non-empty (echoes envelope.id).
 //   - resp.Kind must be one of the canonical kinds.
-//   - resp.Status must be a recognized status. During the bounded v0.4.x
-//     compatibility window this includes legacy "cancelled" input; callers
-//     should use ResponseStatus.Canonical before re-emitting persisted input.
+//   - resp.Status must be a recognized status. Retained v0.5.x compatibility
+//     includes legacy "cancelled" input; removal is not scheduled and will be
+//     announced first. Callers should use ResponseStatus.Canonical before
+//     re-emitting persisted input.
 //   - When resp.Kind == data and the type registers a PayloadSchema, the
 //     payload is validated against it.
 //   - When resp.Kind == error, resp.Error must be non-nil with a Code.

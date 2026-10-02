@@ -132,9 +132,9 @@ const (
 	// ResponseStatusCancelled is the legacy British-spelled wire value.
 	//
 	// Deprecated: use ResponseStatusCanceled for new responses. The legacy
-	// spelling remains recognized throughout v0.4.x so v0.2-era persisted
+	// spelling is retained in v0.5.x so v0.2-era persisted
 	// responses can be read and existing emitters can migrate without a flag
-	// day. It is scheduled for removal in v0.5.0.
+	// day. Removal is not scheduled and will be announced first.
 	ResponseStatusCancelled ResponseStatus = "cancelled"
 )
 
@@ -149,14 +149,14 @@ func (s ResponseStatus) IsCanonical() bool {
 	return false
 }
 
-// IsValid reports whether s is a recognized response status. In v0.4.x this
+// IsValid reports whether s is a recognized response status. In v0.5.x this
 // includes the legacy ResponseStatusCancelled wire value; new responses should
 // use a status for which IsCanonical reports true.
 func (s ResponseStatus) IsValid() bool {
 	return s.IsCanonical() || s == ResponseStatusCancelled
 }
 
-// Canonical returns the canonical US-English spelling of s. It maps the v0.4.x
+// Canonical returns the canonical US-English spelling of s. It maps the retained
 // legacy cancellation value to ResponseStatusCanceled and leaves all other
 // values unchanged. Call IsValid before Canonical when rejecting unknown input.
 func (s ResponseStatus) Canonical() ResponseStatus {
@@ -229,7 +229,7 @@ const (
 	// ErrorCodeUserCancelled is the legacy British-spelled wire value.
 	//
 	// Deprecated: use ErrorCodeUserCanceled for new responses. The legacy value
-	// remains readable throughout v0.4.x and is scheduled for removal in v0.5.0.
+	// is retained in v0.5.x. Removal is not scheduled and will be announced first.
 	ErrorCodeUserCancelled = "user-cancelled"
 )
 

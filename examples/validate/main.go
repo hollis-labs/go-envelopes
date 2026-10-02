@@ -45,7 +45,8 @@ func main() {
 
 	// New responses use the canonical US-English cancellation vocabulary.
 	// ValidateResponse still recognizes v0.2-era "cancelled" input throughout
-	// v0.4.x; call ResponseStatus.Canonical before re-emitting stored input.
+	// v0.5.x. Removal is not scheduled and will be announced first.
+	// Call ResponseStatus.Canonical before re-emitting stored input.
 	response := &envelopes.Response{
 		V:          envelopes.ProtocolVersion,
 		EnvelopeID: good.ID,
