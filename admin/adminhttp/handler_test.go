@@ -674,3 +674,53 @@ func TestManifestRevisionPrecedesUnknownGroupKeys(t *testing.T) {
 		}
 	}
 }
+
+// Simulate another writer committing after Read and before Preview resolves.
+// The helper's validate command itself must never persist its proposed change.
+type interleavedWriter struct {
+	*store
+	written bool
+}
+
+func (s *interleavedWriter) Preview(ctx context.Context, changes admin.Changes) (admin.State, error) {
+	s.mu.Lock()
+	if !s.written {
+		s.written = true
+		s.state.Version = "external-v2"
+		v := s.state.Values["token"]
+		v.Value = scalar("synthetic-private SELECT token FROM secrets /private/credentials")
+		s.state.Values["token"] = v
+	}
+	s.mu.Unlock()
+	return s.store.Preview(ctx, changes)
+}
+
+func TestValidateInterleavedWriteUnavailableAndRetry(t *testing.T) {
+	s := &interleavedWriter{store: newStore()}
+	d := declaration(s.store)
+	d.Groups[0].Backend = s
+	h, err := adminhttp.NewHandler(configuration(t, d))
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := request(h, "POST", "/admin/settings/prefs/validate", change, "")
+	check(t, w, 503, admin.BackendUnavailable)
+	want := `{"error":{"code":"backend_unavailable","message":"The admin backend is unavailable."}}`
+	if w.Body.String() != want || w.Header().Get("ETag") != "" {
+		t.Fatal("unavailable response disclosed values/details or a completed snapshot", w.Body.String())
+	}
+	if !s.written || s.state.Version != "external-v2" || s.state.Values["url"].Value.Value() != "https://initial.test" || s.reads != 1 || s.previews != 1 || s.transactions != 0 || s.stages != 0 || s.commits != 0 || s.restarts != 0 {
+		t.Fatal("interleaved validation persisted, applied, or retried")
+	}
+	// An explicit retry observes the new stable base and completes without writes.
+	before := copyState(s.state)
+	w = request(h, "POST", "/admin/settings/prefs/validate", change, "")
+	check(t, w, 200, "")
+	var validation admin.Validation
+	if err := json.Unmarshal(w.Body.Bytes(), &validation); err != nil || !validation.Valid {
+		t.Fatal("stable retry did not complete validation", w.Body.String(), err)
+	}
+	if s.reads != 2 || s.previews != 2 || s.transactions != 0 || s.stages != 0 || s.commits != 0 || s.restarts != 0 || !reflect.DeepEqual(before, s.state) {
+		t.Fatal("retry changed persistent state")
+	}
+}
