@@ -4,7 +4,7 @@ All notable changes to `go-envelopes` are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/) and the package
 adheres to [Semantic Versioning](https://semver.org/).
 
-## [0.5.0] - 2026-10-02
+## [0.5.0] - 2026-10-03
 
 ### Added
 
@@ -13,7 +13,8 @@ adheres to [Semantic Versioning](https://semver.org/).
   `ValidateResponse` checks question IDs, item IDs and decision actions for every
   response kind. `ResponseStatus.IsTerminal` supplies the terminal-versus-draft
   distinction; the documented conflict contract leaves transport/storage to the
-  host. ([8827ce4](https://github.com/hollis-labs/go-envelopes/commit/8827ce41ec220719cb59732f35c35e12308dc327))
+  host. README documents the typed channels, conflict contract and host-owned
+  transport. ([8827ce4](https://github.com/hollis-labs/go-envelopes/commit/8827ce41ec220719cb59732f35c35e12308dc327))
 - `TypeSupport`, `Registry.CheckSupport` and `Registry.SupportedTypes` let hosts
   declare supported types and named exclusions. `SupportGap` reports unclaimed,
   unknown or conflicting names. No catalog partition or host emission policy is
@@ -80,9 +81,10 @@ adheres to [Semantic Versioning](https://semver.org/).
   ([f1593e4](https://github.com/hollis-labs/go-envelopes/commit/f1593e4e7a357dc728f17d5379e1e2d98e97d31e))
 - `Response.answers` and `.decisions` are optional additions, but Go reflection
   can expand a public JSON schema even when old payload bytes are unchanged.
-  Tangent's session history output reflects those fields and its schema freeze
-  requires an accepted ADR before refreshing the digest. Inspect reflected
-  contracts as well as JSON payloads when upgrading.
+  Tangent's session history output reflects those fields. Chrispian ACCEPTED
+  ADR0011 on 2026-10-03 for this exact expansion, satisfying its schema-freeze
+  policy before the separate digest refresh. Inspect reflected contracts as
+  well as JSON payloads when upgrading.
   ([8827ce4](https://github.com/hollis-labs/go-envelopes/commit/8827ce41ec220719cb59732f35c35e12308dc327);
   [consumer evidence, Tangent #76](https://github.com/hollis-labs/tangent/pull/76))
 - Module version, `Envelope.V` and `admin.ContractVersion` are independent.
