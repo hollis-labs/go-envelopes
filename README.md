@@ -1,5 +1,22 @@
 # go-envelopes
 
+## Maintenance moved to `github.com/hollis-labs/libs/ui-go`
+
+This standalone repository is retired. Maintained source and documentation are
+in [github.com/hollis-labs/libs/ui-go/envelopes](https://github.com/hollis-labs/libs/tree/ui-go%2Fv0.1.0/ui-go/envelopes), released in **`ui-go/v0.1.0`**.
+Install the replacement module:
+
+```sh
+go get github.com/hollis-labs/libs/ui-go@v0.1.0
+```
+
+Replace the `github.com/hollis-labs/go-envelopes` import prefix with
+`github.com/hollis-labs/libs/ui-go/envelopes`, retaining the package subpath. Review the replacement documentation
+for any API changes before migrating. Existing standalone tags and history remain
+available; old module pins do not automatically redirect to the new module.
+
+The documentation below describes historical standalone usage.
+
 `go-envelopes` is the shared Go primitive library for the **Envelope UI
 Protocol** — a small wire format for typed, host-rendered payloads that
 agents send to host applications. The package ships a manifest-driven
