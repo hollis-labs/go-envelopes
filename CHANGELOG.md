@@ -1,5 +1,15 @@
 # Changelog
 
+## Repository retirement — 2026-10-09
+
+### Changed
+
+- Maintained development moved to [github.com/hollis-labs/libs/ui-go/envelopes](https://github.com/hollis-labs/libs/tree/ui-go%2Fv0.1.0/ui-go/envelopes) in
+  `github.com/hollis-labs/libs/ui-go@v0.1.0` (`ui-go/v0.1.0`).
+- This standalone repository is retired after the replacement release was
+  verified fetchable with successful module CI. README migration instructions
+  identify the new import prefix; existing standalone tags and history are preserved.
+
 All notable changes to `go-envelopes` are documented here. The format
 follows [Keep a Changelog](https://keepachangelog.com/) and the package
 adheres to [Semantic Versioning](https://semver.org/).
